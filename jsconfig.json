@@ -1,7 +1,19 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    }
-  }
+    },
+    "jsx": "preserve",
+    "checkJs": false,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "types": [] 
+  },
+  "exclude": [
+    "node_modules",
+    ".next",
+    "out",
+    "public"
+  ]
 }

@@ -1,0 +1,22 @@
+{
+  "name": "MariVama - Control de Fiados",
+  "short_name": "MariVama",
+  "description": "Sistema de gestión para MariVama",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff7ed",
+  "theme_color": "#ea580c",
+  "icons": [
+    {
+      "src": "/logo-marivama.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-marivama.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
