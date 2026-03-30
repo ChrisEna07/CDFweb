@@ -1,176 +1,72 @@
-☕ MariVama CDF - Gestión de Fiados
-MariVama CDF es una aplicación web progresiva (PWA) diseñada para digitalizar la "libreta de fiados" de un negocio local. Permite registrar ventas a crédito, gestionar un catálogo de productos dinámico y llevar un control fotográfico de las deudas, optimizando la operación diaria desde dispositivos móviles.
+# 🥟 MARIVAMA - Sistema de Gestión de Ventas y Fiados
 
+![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 
-🚀 Características Principales
-📱 Experiencia Móvil Optimizada (Mobile-First)
-Diseño Adaptativo: Desarrollado específicamente para pantallas táctiles, con botones grandes y navegación intuitiva.
+**MARIVAMA** es una aplicación web progresiva diseñada para optimizar el control de ventas, gestión de clientes deudores (fiados) y seguimiento de inventario. Enfocada en la facilidad de uso y una estética moderna con soporte para modo oscuro.
 
-Sticky UI: Los botones de acción principal y los totales de venta permanecen visibles incluso cuando el teclado del celular está desplegado (svh units).
+---
 
-Modo Oscuro/Claro: Soporte nativo de temas para facilitar la lectura en diferentes condiciones de luz.
+## ✨ Características Principales
 
-⚡ Flujo de Venta Inteligente
-Registro Fotográfico: Integración con la cámara del dispositivo para subir fotos de la libreta física o del pedido como respaldo de la deuda.
+* **📊 Dashboard Inteligente:** Visualización rápida de ingresos totales, saldos pendientes y estadísticas semanales.
+* **👥 Gestión de Clientes:** Registro detallado de clientes con sistema de puntos acumulables por pagos puntuales.
+* **📜 Control de Fiados:** Registro de deudas con estados (pendiente, pagado, archivado).
+* **🛒 Lista de Compras & Tareas:** Módulos integrados para organizar el inventario faltante y los pendientes diarios.
+* **📄 Exportación PDF:** Generación automática de comprobantes de cobro para enviar a los clientes.
+* **🌙 Modo Oscuro/Claro:** Interfaz adaptativa para cualquier entorno de trabajo.
+* **🔒 Seguridad:** Protección de acciones críticas (como reiniciar caja) mediante un sistema de PIN (AdminGuard).
 
-Cálculo Automático: Los subtotales y totales se calculan en tiempo real según los precios del menú.
+## 🚀 Tecnologías Utilizadas
 
-Gestión de Menú Sin Código: Interfaz dedicada para agregar o actualizar productos (ej: Tinto, Café con leche) y precios sin modificar el software.
+* **Frontend:** Next.js 14 (App Router) con React.
+* **Estilos:** Tailwind CSS para un diseño responsivo y animaciones personalizadas.
+* **Base de Datos & Auth:** Supabase (PostgreSQL) para almacenamiento en tiempo real.
+* **Estado & Contexto:** React Context API para manejo de temas y autenticación.
+* **Notificaciones:** Sonner para alertas interactivas.
 
-🔐 Seguridad y Rapidez
-AdminGuard con Auto-Login: Sistema de protección por PIN de 4 dígitos para acciones críticas (borrar deudas o clientes).
+## 🛠️ Instalación y Configuración
 
-Validación Instantánea: El sistema detecta automáticamente cuando se ingresan los 4 dígitos del PIN, agilizando el acceso sin clics adicionales.
+1.  **Clonar el repositorio:**
+    ```bash
+    git clone [https://github.com/tu-usuario/marivama.git](https://github.com/tu-usuario/marivama.git)
+    cd marivama
+    ```
 
-🛠️ Stack Tecnológico
-Frontend: Next.js 14 (App Router).
+2.  **Instalar dependencias:**
+    ```bash
+    npm install
+    # o
+    yarn install
+    ```
 
-Estilos: Tailwind CSS (Diseño responsivo y animaciones).
+3.  **Variables de Entorno:**
+    Crea un archivo `.env.local` en la raíz del proyecto y añade tus credenciales de Supabase:
+    ```env
+    NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_clave_anon_key
+    ```
 
-Backend as a Service: Supabase (PostgreSQL + Storage para imágenes).
+4.  **Ejecutar en desarrollo:**
+    ```bash
+    npm run dev
+    ```
+    La aplicación estará disponible en `http://localhost:3000`.
 
-Estado y Contexto: React Hooks (useState, useEffect, useContext).
+## 📸 Vista Previa
 
-Notificaciones: Sonner (Toasts elegantes para feedback de usuario).
+> [!TIP]
+> La aplicación cuenta con una **Marquesina Neon** en el encabezado que muestra frases motivacionales dinámicas para inspirar el día de trabajo.
 
+## 📈 Estructura del Proyecto
 
+* `/components`: Componentes reutilizables (Modales, Guards, Layouts).
+* `/context`: Manejo del estado global (Tema, Datos).
+* `/lib`: Configuración de Supabase y utilidades de exportación (PDF).
+* `/app`: Rutas principales del Dashboard, Clientes y Reportes.
 
-Gemini ha dicho
-Este es un README.md diseñado para destacar, con un enfoque profesional pero que explica claramente el valor social y práctico de la aplicación. Es ideal para tu portafolio de GitHub.
+---
 
-☕ MariVama CDF - Gestión de Fiados
-MariVama CDF es una aplicación web progresiva (PWA) diseñada para digitalizar la "libreta de fiados" de un negocio local. Permite registrar ventas a crédito, gestionar un catálogo de productos dinámico y llevar un control fotográfico de las deudas, optimizando la operación diaria desde dispositivos móviles.
-
-🚀 Características Principales
-📱 Experiencia Móvil Optimizada (Mobile-First)
-Diseño Adaptativo: Desarrollado específicamente para pantallas táctiles, con botones grandes y navegación intuitiva.
-
-Sticky UI: Los botones de acción principal y los totales de venta permanecen visibles incluso cuando el teclado del celular está desplegado (svh units).
-
-Modo Oscuro/Claro: Soporte nativo de temas para facilitar la lectura en diferentes condiciones de luz.
-
-⚡ Flujo de Venta Inteligente
-Registro Fotográfico: Integración con la cámara del dispositivo para subir fotos de la libreta física o del pedido como respaldo de la deuda.
-
-Cálculo Automático: Los subtotales y totales se calculan en tiempo real según los precios del menú.
-
-Gestión de Menú Sin Código: Interfaz dedicada para agregar o actualizar productos (ej: Tinto, Café con leche) y precios sin modificar el software.
-
-🔐 Seguridad y Rapidez
-AdminGuard con Auto-Login: Sistema de protección por PIN de 4 dígitos para acciones críticas (borrar deudas o clientes).
-
-Validación Instantánea: El sistema detecta automáticamente cuando se ingresan los 4 dígitos del PIN, agilizando el acceso sin clics adicionales.
-
-🛠️ Stack Tecnológico
-Frontend: Next.js 14 (App Router).
-
-Estilos: Tailwind CSS (Diseño responsivo y animaciones).
-
-Backend as a Service: Supabase (PostgreSQL + Storage para imágenes).
-
-Estado y Contexto: React Hooks (useState, useEffect, useContext).
-
-Notificaciones: Sonner (Toasts elegantes para feedback de usuario).
-
-📦 Instalación y Configuración
-Clonar el repositorio:
-
-git clone https://github.com/tu-usuario/marivama-cdf.git
-cd marivama-cdf
-
-Instalar dependencias:
-
-npm install
-
-Variables de Entorno:
-Crea un archivo .env.local con tus credenciales de Supabase:
-
-NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_llave_anonima
-
-
-Ejecutar en desarrollo:
-
-npm run dev
-
-Gemini ha dicho
-Este es un README.md diseñado para destacar, con un enfoque profesional pero que explica claramente el valor social y práctico de la aplicación. Es ideal para tu portafolio de GitHub.
-
-☕ MariVama CDF - Gestión de Fiados
-MariVama CDF es una aplicación web progresiva (PWA) diseñada para digitalizar la "libreta de fiados" de un negocio local. Permite registrar ventas a crédito, gestionar un catálogo de productos dinámico y llevar un control fotográfico de las deudas, optimizando la operación diaria desde dispositivos móviles.
-
-🚀 Características Principales
-📱 Experiencia Móvil Optimizada (Mobile-First)
-Diseño Adaptativo: Desarrollado específicamente para pantallas táctiles, con botones grandes y navegación intuitiva.
-
-Sticky UI: Los botones de acción principal y los totales de venta permanecen visibles incluso cuando el teclado del celular está desplegado (svh units).
-
-Modo Oscuro/Claro: Soporte nativo de temas para facilitar la lectura en diferentes condiciones de luz.
-
-⚡ Flujo de Venta Inteligente
-Registro Fotográfico: Integración con la cámara del dispositivo para subir fotos de la libreta física o del pedido como respaldo de la deuda.
-
-Cálculo Automático: Los subtotales y totales se calculan en tiempo real según los precios del menú.
-
-Gestión de Menú Sin Código: Interfaz dedicada para agregar o actualizar productos (ej: Tinto, Café con leche) y precios sin modificar el software.
-
-🔐 Seguridad y Rapidez
-AdminGuard con Auto-Login: Sistema de protección por PIN de 4 dígitos para acciones críticas (borrar deudas o clientes).
-
-Validación Instantánea: El sistema detecta automáticamente cuando se ingresan los 4 dígitos del PIN, agilizando el acceso sin clics adicionales.
-
-🛠️ Stack Tecnológico
-Frontend: Next.js 14 (App Router).
-
-Estilos: Tailwind CSS (Diseño responsivo y animaciones).
-
-Backend as a Service: Supabase (PostgreSQL + Storage para imágenes).
-
-Estado y Contexto: React Hooks (useState, useEffect, useContext).
-
-Notificaciones: Sonner (Toasts elegantes para feedback de usuario).
-
-📦 Instalación y Configuración
-Clonar el repositorio:
-
-Bash
-git clone https://github.com/tu-usuario/marivama-cdf.git
-cd marivama-cdf
-Instalar dependencias:
-
-Bash
-npm install
-Variables de Entorno:
-Crea un archivo .env.local con tus credenciales de Supabase:
-
-Fragmento de código
-NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_llave_anonima
-Ejecutar en desarrollo:
-
-Bash
-npm run dev
-📸 Vista Previa del Código
-Lógica de Auto-Login (Snippet)
-
-// Validación automática al llegar a 4 dígitos
-useEffect(() => {
-  if (pin.length === 4) {
-    if (pin === PIN_CORRECTO) {
-      onConfirm();
-    } else {
-      toast.error("PIN Incorrecto");
-      setPin('');
-    }
-  }
-}, [pin]);
-
-📝 Notas de Implementación
-La aplicación utiliza la unidad de medida Short Viewport Height (svh) para evitar que los elementos sticky sean cubiertos por la barra de herramientas del navegador o el teclado virtual en iOS y Android, garantizando que el botón de "Guardar" esté siempre al alcance del pulgar del usuario.
-
-👨‍💻 Autor
-ChrizDev🚀
-
-Proyecto desarrollado para modernizar la contabilidad informal en negocios de barrio.
-
-
+Desarrollado con ❤️ para **MARIVAMA**.
