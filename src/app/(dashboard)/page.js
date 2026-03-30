@@ -96,7 +96,52 @@ export default function Dashboard() {
   const calcularPuntos = (clienteId) => {
     const pagados = fiados.filter(f => f.cliente_id === clienteId && f.estado === 'pagado').length;
     const canjes = premios.filter(p => p.cliente_id === clienteId).length;
-    return Math.max(0, (pagados * 2) - (canjes * 10));
+    
+    // Cada compra pagada da 2 puntos
+    const puntosTotales = pagados * 2;
+    
+    // Cada canje cuesta 100 puntos
+    const puntosCanjeados = canjes * 100;
+    
+    // Puntos disponibles = puntos totales - puntos ya canjeados
+    const puntosDisponibles = Math.max(0, puntosTotales - puntosCanjeados);
+    
+    return puntosDisponibles;
+  };
+
+  // ✨ NUEVA FUNCIÓN: Verificar si puede canjear un premio (100 puntos)
+  const puedeCanjear = (clienteId) => {
+    const puntosDisponibles = calcularPuntos(clienteId);
+    return puntosDisponibles >= 100;
+  };
+
+  // ✨ NUEVA FUNCIÓN: Registrar el canje de un premio
+  const registrarCanje = async (clienteId) => {
+    const puntosDisponibles = calcularPuntos(clienteId);
+    
+    if (puntosDisponibles < 100) {
+      toast.error(`❌ Faltan ${100 - puntosDisponibles} puntos para canjear un premio`);
+      return false;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('premios_entregados')
+        .insert([{ 
+          cliente_id: clienteId,
+          puntos_usados: 100,
+          canjeado_el: new Date().toISOString()
+        }]);
+      
+      if (error) throw error;
+      
+      toast.success(`🎉 ¡Premio canjeado! Te quedan ${calcularPuntos(clienteId)} puntos`);
+      fetchPremios(); // Actualizar la lista de premios
+      return true;
+    } catch (err) {
+      toast.error("Error al canjear el premio");
+      return false;
+    }
   };
 
   // --- 🛒 LÓGICA COMPRAS ---
@@ -247,7 +292,20 @@ export default function Dashboard() {
                 <Link href={`/clientes/detalles?id=${cliente.id}`} className="flex-1 group/link">
                     <h3 className="text-lg font-black uppercase leading-none group-hover/link:text-orange-600 transition-colors">{cliente.apodo}</h3>
                     <div className="flex items-center gap-2 mt-2">
-                        <span className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-2.5 py-0.5 rounded-full text-[10px] font-black shadow-md">🏅 {calcularPuntos(cliente.id)} PTS</span>
+                        <span className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-2.5 py-0.5 rounded-full text-[10px] font-black shadow-md">
+                          🏅 {calcularPuntos(cliente.id)} PTS
+                          {puedeCanjear(cliente.id) && (
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                registrarCanje(cliente.id);
+                              }}
+                              className="ml-1 bg-purple-600 text-white px-1.5 py-0.5 rounded-full text-[8px] font-black hover:bg-purple-700 transition-colors"
+                            >
+                              🎁 Canjear
+                            </button>
+                          )}
+                        </span>
                         <p className="text-[9px] font-bold opacity-50 uppercase truncate">{cliente.nombre || 'Sin nombre'}</p>
                     </div>
                 </Link>
