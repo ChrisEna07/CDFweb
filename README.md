@@ -55,7 +55,21 @@
     ```
     La aplicación estará disponible en `http://localhost:3000`.
 
-## 📸 Vista Previa
+## 📸 Vista Previa del Sistema
+
+Aquí puedes ver cómo luce la interfaz de **MARIVAMA**:
+
+| Dashboard Principal | Header y Mensajes |
+|---|---|
+| ![Dashboard](./screenshots/dashboard.png) | ![Header](./screenshots/header.png) |
+
+| Clientes Activos | Panel de Fiados |
+|---|---|
+| ![Clientes](./screenshots/panel%20de%20clientes%20activos.png) | ![Nuevo Fiado](./screenshots/panel%20de%20adcionar%20pedio(fiado).png) |
+
+### 🛠️ Detalles de Interfaz
+* **Análisis:** Visualiza datos rápidos con el ![Boton Estadísticas](./screenshots/boton%20de%20estadisticas.png)
+* **Utilidades:** Accede a funciones extra mediante el ![Boton Funciones](./screenshots/boton%20de%20funciones%20adicionales.png)
 
 > [!TIP]
 > La aplicación cuenta con una **Marquesina Neon** en el encabezado que muestra frases motivacionales dinámicas para inspirar el día de trabajo.
