@@ -83,4 +83,4 @@ Aquí puedes ver cómo luce la interfaz de **MARIVAMA**:
 
 ---
 
-Desarrollado con ❤️ para **MARIVAMA**.
+Desarrollado por ChrizDev con ❤️ para **MARIA VANEGAS**.
