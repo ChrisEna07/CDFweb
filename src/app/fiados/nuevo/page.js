@@ -15,6 +15,8 @@ export default function NuevoFiado() {
   const [clienteId, setClienteId] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
   const [itemsVenta, setItemsVenta] = useState([{ productoId: '', cantidad: 1, subtotal: 0 }])
+  const [abono, setAbono] = useState(0)
+  const [notas, setNotas] = useState('') // ✨ NUEVO ESTADO PARA NOTAS
   const [cargando, setCargando] = useState(false)
 
   const [foto, setFoto] = useState(null)
@@ -32,18 +34,9 @@ export default function NuevoFiado() {
     cargarDatos()
   }, [])
 
-  const manejarFoto = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setFoto(file)
-      setPreview(URL.createObjectURL(file))
-    }
-  }
-
   const actualizarItem = (index, campo, valor) => {
     const nuevosItems = [...itemsVenta]
     nuevosItems[index][campo] = valor
-    
     if (campo === 'productoId' || campo === 'cantidad') {
       const prod = productosMenu.find(p => p.id === nuevosItems[index].productoId)
       const cant = Number(nuevosItems[index].cantidad) || 0
@@ -52,43 +45,49 @@ export default function NuevoFiado() {
     setItemsVenta(nuevosItems)
   }
 
-  const totalGeneral = itemsVenta.reduce((acc, item) => acc + item.subtotal, 0)
+  const totalConsumo = itemsVenta.reduce((acc, item) => acc + item.subtotal, 0)
+  const totalAFiar = Math.max(totalConsumo - abono, 0)
 
   const guardarVenta = async (e) => {
     e.preventDefault()
     if (!clienteId || itemsVenta.some(i => !i.productoId)) {
-        return toast.error("Selecciona un cliente y los productos")
+        return toast.error("Selecciona cliente y productos")
     }
     
     setCargando(true)
 
     try {
       let urlEvidencia = null
-
       if (foto) {
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`
+        const fileName = `${Date.now()}.jpg`
         const { error: upErr } = await supabase.storage.from('evidencias').upload(`fiados/${fileName}`, foto)
         if (upErr) throw upErr
         urlEvidencia = supabase.storage.from('evidencias').getPublicUrl(`fiados/${fileName}`).data.publicUrl
       }
 
-      const registros = itemsVenta.map(item => ({
-        cliente_id: clienteId,
-        producto_id: item.productoId,
-        cantidad: parseInt(item.cantidad),
-        monto_total: item.subtotal,
-        creado_el: fecha,
-        evidencia_url: urlEvidencia,
-        estado: 'pendiente'
-      }))
+      const registros = itemsVenta.map(item => {
+        const factor = totalConsumo > 0 ? (item.subtotal / totalConsumo) : 0
+        const montoNeto = item.subtotal - (abono * factor)
+
+        return {
+          cliente_id: clienteId,
+          producto_id: item.productoId,
+          cantidad: parseInt(item.cantidad),
+          monto_total: montoNeto,
+          creado_el: fecha,
+          evidencia_url: urlEvidencia,
+          notas: notas.toUpperCase(), // ✨ SE GUARDA LA NOTA EN MAYÚSCULAS
+          estado: montoNeto <= 0 ? 'pagado' : 'pendiente'
+        }
+      })
 
       const { error } = await supabase.from('fiados').insert(registros)
       if (error) throw error
       
-      toast.success("¡Venta registrada con éxito! 🥟")
+      toast.success("¡Venta y notas registradas! 🥟")
       router.push('/')
     } catch (err) {
-      toast.error("Error al guardar: " + err.message)
+      toast.error("Error: " + err.message)
     } finally {
       setCargando(false)
     }
@@ -101,102 +100,102 @@ export default function NuevoFiado() {
   }`
 
   return (
-    <div className={`min-h-screen p-4 pb-24 transition-colors ${bgMain}`}>
+    <div className={`min-h-screen p-4 pb-44 transition-colors ${bgMain}`}>
+      {/* HEADER */}
       <div className="w-full max-w-xl mx-auto flex justify-between items-center mb-6">
-        <Link href="/" className="bg-orange-600 text-white px-5 py-2 rounded-xl font-black shadow-md active:scale-90 transition-transform">← VOLVER</Link>
-        <h2 className="font-black uppercase opacity-60 italic">Nuevo Pedido</h2>
+        <Link href="/" className="bg-orange-600 text-white px-5 py-2 rounded-xl font-black shadow-md active:scale-90">← VOLVER</Link>
+        <h2 className="font-black uppercase opacity-60 italic text-xs">Anotar Pedido</h2>
       </div>
 
       <form onSubmit={guardarVenta} className="max-w-xl mx-auto space-y-6">
         
-        {/* CLIENTE Y FECHA */}
-        <div className={`${cardBg} p-6 rounded-[2.5rem] border-2 space-y-4 shadow-xl`}>
+        <div className={`${cardBg} p-6 rounded-[2.5rem] border-2 space-y-4`}>
+          {/* CLIENTE */}
           <div>
-            <label className="block text-[10px] font-black uppercase mb-1 opacity-60">👤 ¿A quién le fiamos?</label>
+            <label className="block text-[10px] font-black uppercase mb-1 opacity-60">👤 Cliente</label>
             <select value={clienteId} onChange={e => setClienteId(e.target.value)} className={inputStyle}>
-              <option value="">-- SELECCIONAR CLIENTE --</option>
+              <option value="">-- SELECCIONAR --</option>
               {clientes.map(c => <option key={c.id} value={c.id} className="text-black">{c.apodo}</option>)}
             </select>
           </div>
+
+          {/* ✨ MEJORA: NOTA ADICIONAL */}
           <div>
-            <label className="block text-[10px] font-black uppercase mb-1 opacity-60">📅 Fecha del pedido</label>
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputStyle} />
+            <label className="block text-[10px] font-black uppercase mb-1 opacity-60">📝 Nota / Recordatorio (Opcional)</label>
+            <textarea 
+              value={notas}
+              onChange={e => setNotas(e.target.value)}
+              placeholder="EJ: VIENE A PAGAR EL VIERNES O TRAER CAMBIO..."
+              rows="2"
+              className={`${inputStyle} text-sm normal-case font-medium`}
+            />
           </div>
         </div>
 
-        {/* EVIDENCIA FOTOGRÁFICA */}
-        <div className="bg-black/5 p-4 rounded-[2rem] border-2 border-dashed border-gray-400 text-center">
-          <label className="block text-[10px] font-black uppercase mb-2 opacity-60">📸 Foto de la libreta (Opcional)</label>
-          {preview ? (
-            <div className="relative inline-block">
-              <img src={preview} alt="Evidencia" className="w-full h-40 object-cover rounded-2xl border-4 border-orange-500" />
-              <button type="button" onClick={() => {setFoto(null); setPreview(null)}} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-8 h-8 font-black">X</button>
-            </div>
-          ) : (
-            <label className="cursor-pointer block p-4 bg-orange-100 rounded-2xl text-orange-700 font-black hover:bg-orange-200 transition-colors">
-              📷 TOMAR O SUBIR FOTO
-              <input type="file" accept="image/*" capture="environment" onChange={manejarFoto} className="hidden" />
-            </label>
-          )}
+        {/* ABONO */}
+        <div className="bg-green-500/10 border-2 border-green-500/30 p-6 rounded-[2.5rem] space-y-2">
+          <label className="block text-[10px] font-black uppercase text-green-600">💰 Abono Inmediato</label>
+          <input 
+            type="number" 
+            inputMode="numeric"
+            value={abono} 
+            onChange={e => setAbono(Number(e.target.value))} 
+            className={`${inputStyle} border-green-500/50 text-green-600`}
+            placeholder="0"
+          />
         </div>
 
         {/* PRODUCTOS */}
         <div className="space-y-4">
-          <div className="flex justify-between items-center px-2">
-            <label className="text-sm font-black uppercase italic opacity-60">🍴 Detalle del consumo:</label>
-            <Link href="/productos" className="text-[10px] font-black text-orange-600 underline uppercase">
-               ⚙️ Editar Menú (Precios)
-            </Link>
-          </div>
-          
+          <p className="text-xs font-black uppercase italic opacity-60 px-2">Detalle:</p>
           {itemsVenta.map((item, index) => (
-            <div key={index} className={`${cardBg} p-4 rounded-[2rem] border-2 flex gap-3 items-center shadow-md animate-in slide-in-from-left-2`}>
+            <div key={index} className={`${cardBg} p-4 rounded-[2rem] border-2 flex gap-3 items-center shadow-md`}>
               <select 
                 value={item.productoId} 
                 onChange={(e) => actualizarItem(index, 'productoId', e.target.value)}
-                className="flex-1 bg-transparent font-black uppercase text-sm outline-none border-none"
+                className="flex-1 bg-transparent font-black uppercase text-sm outline-none"
               >
-                <option value="">¿QUÉ LLEVA?</option>
+                <option value="">PRODUCTO</option>
                 {productosMenu.map(p => (
-                  <option key={p.id} value={p.id} className="text-black">
-                    {p.nombre} (${p.precio.toLocaleString('es-CO')})
-                  </option>
+                  <option key={p.id} value={p.id} className="text-black">{p.nombre}</option>
                 ))}
               </select>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black opacity-40">CANT.</span>
-                <input 
-                    type="number" 
-                    value={item.cantidad} 
-                    onChange={(e) => actualizarItem(index, 'cantidad', e.target.value)}
-                    className="w-16 p-2 text-center bg-orange-100 rounded-xl font-black text-orange-600 border-2 border-orange-200 outline-none"
-                />
-              </div>
+              <input 
+                  type="number" 
+                  value={item.cantidad} 
+                  onChange={(e) => actualizarItem(index, 'cantidad', e.target.value)}
+                  className="w-14 p-2 text-center bg-orange-100 rounded-xl font-black text-orange-600 border-2 border-orange-200"
+              />
             </div>
           ))}
+          <button 
+            type="button" 
+            onClick={() => setItemsVenta([...itemsVenta, { productoId: '', cantidad: 1, subtotal: 0 }])}
+            className="w-full py-3 border-4 border-dashed border-orange-300 rounded-[2rem] text-orange-600 font-black text-xs"
+          >
+            + AGREGAR OTRO
+          </button>
         </div>
 
-        <button 
-          type="button" 
-          onClick={() => setItemsVenta([...itemsVenta, { productoId: '', cantidad: 1, subtotal: 0 }])}
-          className="w-full py-4 border-4 border-dashed border-orange-300 rounded-[2rem] text-orange-600 font-black uppercase text-xs hover:bg-orange-50 active:scale-95 transition-all"
-        >
-          + AÑADIR OTRO PRODUCTO
-        </button>
-
-        {/* RESUMEN Y GUARDADO */}
-        <div className="bg-orange-600 p-6 rounded-[2.5rem] text-white flex justify-between items-center shadow-2xl border-b-8 border-orange-800 sticky bottom-4">
-          <div>
-            <p className="text-[10px] font-black opacity-80 uppercase leading-none">Total a anotar</p>
-            <p className="text-4xl font-black tracking-tighter">${totalGeneral.toLocaleString('es-CO')}</p>
+        {/* BARRA INFERIOR DE TOTALES */}
+        <div className="bg-orange-600 p-6 rounded-[2.5rem] text-white shadow-2xl border-b-8 border-orange-800 sticky bottom-4 z-40">
+          <div className="flex justify-between items-center mb-2 opacity-80 border-b border-white/20 pb-2">
+            <span className="text-[10px] font-black uppercase italic">Consumo: ${totalConsumo.toLocaleString()}</span>
+            {abono > 0 && <span className="text-[10px] font-black uppercase text-green-300 italic">Abono: -${abono.toLocaleString()}</span>}
           </div>
-          <button 
-            type="submit" 
-            disabled={cargando} 
-            className="bg-white text-orange-600 px-8 py-4 rounded-2xl font-black text-xl shadow-lg active:translate-y-1 transition-all disabled:opacity-50"
-          >
-            {cargando ? '...' : 'LISTO ✅'}
-          </button>
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-[10px] font-black opacity-80 uppercase leading-none">Anotar en libreta:</p>
+              <p className="text-4xl font-black tracking-tighter">${totalAFiar.toLocaleString('es-CO')}</p>
+            </div>
+            <button 
+              type="submit" 
+              disabled={cargando} 
+              className="bg-white text-orange-600 px-8 py-4 rounded-2xl font-black text-xl shadow-lg active:scale-95 disabled:opacity-50"
+            >
+              {cargando ? '...' : 'LISTO ✅'}
+            </button>
+          </div>
         </div>
       </form>
     </div>
