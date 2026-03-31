@@ -126,7 +126,7 @@ export default function NuevoFiado() {
 
       <form onSubmit={guardarVenta} className="max-w-xl mx-auto space-y-6">
         
-        {/* CLIENTE Y NOTAS */}
+        {/* CLIENTE Y FECHA */}
         <div className={`${cardBg} p-6 rounded-[2rem] border-2 space-y-5`}>
           {/* CLIENTE */}
           <div>
@@ -141,6 +141,19 @@ export default function NuevoFiado() {
               <option value="">-- SELECCIONAR CLIENTE --</option>
               {clientes.map(c => <option key={c.id} value={c.id}>{c.apodo}</option>)}
             </select>
+          </div>
+
+          {/* FECHA - AHORA HABILITADA */}
+          <div>
+            <label className="block text-[10px] font-black uppercase mb-2 opacity-60 flex items-center gap-2">
+              <span>📅</span> Fecha de la Venta
+            </label>
+            <input 
+              type="date" 
+              value={fecha} 
+              onChange={e => setFecha(e.target.value)} 
+              className={inputStyle}
+            />
           </div>
 
           {/* NOTA ADICIONAL */}

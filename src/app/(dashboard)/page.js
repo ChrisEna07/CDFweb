@@ -24,6 +24,14 @@ export default function Dashboard() {
   const [showMenu, setShowMenu] = useState(false)
   const [accionPendiente, setAccionPendiente] = useState(null)
 
+  // Estados para reportes
+  const [reportePeriodo, setReportePeriodo] = useState('dia')
+  const [reporteIngresos, setReporteIngresos] = useState(0)
+  const [reporteDeudasPagadas, setReporteDeudasPagadas] = useState(0)
+  const [reporteFecha, setReporteFecha] = useState(new Date().toISOString().split('T')[0])
+  const [reporteMes, setReporteMes] = useState(new Date().toISOString().slice(0, 7))
+  const [reporteSemana, setReporteSemana] = useState(getSemanaActual())
+
   // --- 📝 ESTADOS PARA FUNCIONES ---
   const [todos, setTodos] = useState([])
   const [nuevoTodo, setNuevoTodo] = useState('')
@@ -49,6 +57,37 @@ export default function Dashboard() {
     "Hoy declaro abundancia sobre tu negocio 📢🌊", "Con Dios, cada obstáculo es una oportunidad 🌟"
   ];
 
+  function getSemanaActual() {
+    const today = new Date()
+    const firstDay = new Date(today)
+    const lastDay = new Date(today)
+    const day = today.getDay()
+    const diff = day === 0 ? 6 : day - 1
+    firstDay.setDate(today.getDate() - diff)
+    lastDay.setDate(firstDay.getDate() + 6)
+    return `${firstDay.toISOString().split('T')[0]} / ${lastDay.toISOString().split('T')[0]}`
+  }
+
+  function calcularReporte() {
+    const pagados = fiados.filter(f => f.estado === 'pagado')
+    
+    let filtrados = []
+    if (reportePeriodo === 'dia') {
+      filtrados = pagados.filter(f => f.creado_el.split('T')[0] === reporteFecha)
+    } else if (reportePeriodo === 'semana') {
+      const [inicio, fin] = reporteSemana.split(' / ')
+      filtrados = pagados.filter(f => f.creado_el.split('T')[0] >= inicio && f.creado_el.split('T')[0] <= fin)
+    } else if (reportePeriodo === 'mes') {
+      filtrados = pagados.filter(f => f.creado_el.startsWith(reporteMes))
+    }
+    
+    const totalIngresosReporte = filtrados.reduce((acc, curr) => acc + Number(curr.monto_total), 0)
+    const totalDeudasPagadas = filtrados.length
+    
+    setReporteIngresos(totalIngresosReporte)
+    setReporteDeudasPagadas(totalDeudasPagadas)
+  }
+
   useEffect(() => {
     fetchDatos()
     fetchTodos()
@@ -62,6 +101,12 @@ export default function Dashboard() {
     else if (hora >= 12 && hora < 18) setSaludo('¡Buenas tardes, María! ☀️')
     else setSaludo('¡Buenas noches, María! 🌙')
   }, [])
+
+  useEffect(() => {
+    if (fiados.length > 0) {
+      calcularReporte()
+    }
+  }, [reportePeriodo, reporteFecha, reporteSemana, reporteMes, fiados])
 
   // --- 🔒 CARGA DE DATOS ---
   async function fetchDatos() {
@@ -97,25 +142,18 @@ export default function Dashboard() {
     const pagados = fiados.filter(f => f.cliente_id === clienteId && f.estado === 'pagado').length;
     const canjes = premios.filter(p => p.cliente_id === clienteId).length;
     
-    // Cada compra pagada da 2 puntos
     const puntosTotales = pagados * 2;
-    
-    // Cada canje cuesta 100 puntos
     const puntosCanjeados = canjes * 100;
-    
-    // Puntos disponibles = puntos totales - puntos ya canjeados
     const puntosDisponibles = Math.max(0, puntosTotales - puntosCanjeados);
     
     return puntosDisponibles;
   };
 
-  // ✨ NUEVA FUNCIÓN: Verificar si puede canjear un premio (100 puntos)
   const puedeCanjear = (clienteId) => {
     const puntosDisponibles = calcularPuntos(clienteId);
     return puntosDisponibles >= 100;
   };
 
-  // ✨ NUEVA FUNCIÓN: Registrar el canje de un premio
   const registrarCanje = async (clienteId) => {
     const puntosDisponibles = calcularPuntos(clienteId);
     
@@ -136,7 +174,7 @@ export default function Dashboard() {
       if (error) throw error;
       
       toast.success(`🎉 ¡Premio canjeado! Te quedan ${calcularPuntos(clienteId)} puntos`);
-      fetchPremios(); // Actualizar la lista de premios
+      fetchPremios();
       return true;
     } catch (err) {
       toast.error("Error al canjear el premio");
@@ -188,8 +226,6 @@ export default function Dashboard() {
   const topMayorFiado = clientes.map(c => ({
     ...c, total: fiados.filter(f => f.cliente_id === c.id && f.estado === 'pendiente').reduce((acc, curr) => acc + Number(curr.monto_total), 0)
   })).sort((a, b) => b.total - a.total).slice(0, 5).filter(c => c.total > 0);
-
-  const clientesQuePagaron = clientes.filter(c => fiados.some(f => f.cliente_id === c.id && f.estado === 'pagado'));
 
   const confirmarAccion = () => {
     if (accionPendiente?.tipo === 'reiniciar') ejecutarReiniciar()
@@ -267,10 +303,62 @@ export default function Dashboard() {
       </div>
 
       <div className="p-6 max-w-lg mx-auto space-y-8">
-        {/* RESUMEN SEMANAL CON EFECTO GLASS */}
-        <div className={`${cardBg} p-6 rounded-[2.5rem] border-2 border-orange-500/30 text-center transition-all duration-300 hover:shadow-2xl hover:scale-[1.02]`}>
-            <p className="text-[10px] uppercase font-black opacity-60 mb-2 tracking-widest">Fiado de la Semana</p>
-            <p className="text-4xl font-black bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">${fiadosSemana.toLocaleString('es-CO')}</p>
+        {/* REPORTE DE INGRESOS MEJORADO */}
+        <div className={`${cardBg} p-6 rounded-[2.5rem] border-2 border-orange-500/30 transition-all duration-300 hover:shadow-2xl`}>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-[10px] uppercase font-black opacity-60 tracking-widest">📊 Reporte de Ingresos</p>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setReportePeriodo('dia')}
+                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all ${reportePeriodo === 'dia' ? 'bg-orange-600 text-white' : 'opacity-50'}`}
+              >Día</button>
+              <button 
+                onClick={() => setReportePeriodo('semana')}
+                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all ${reportePeriodo === 'semana' ? 'bg-orange-600 text-white' : 'opacity-50'}`}
+              >Semana</button>
+              <button 
+                onClick={() => setReportePeriodo('mes')}
+                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all ${reportePeriodo === 'mes' ? 'bg-orange-600 text-white' : 'opacity-50'}`}
+              >Mes</button>
+            </div>
+          </div>
+
+          {reportePeriodo === 'dia' && (
+            <input 
+              type="date" 
+              value={reporteFecha} 
+              onChange={e => setReporteFecha(e.target.value)}
+              className="w-full p-3 rounded-xl border-2 mb-4 bg-transparent font-black text-sm"
+            />
+          )}
+          {reportePeriodo === 'semana' && (
+            <input 
+              type="text" 
+              value={reporteSemana} 
+              onChange={e => setReporteSemana(e.target.value)}
+              placeholder="AAAA-MM-DD / AAAA-MM-DD"
+              className="w-full p-3 rounded-xl border-2 mb-4 bg-transparent font-black text-xs uppercase"
+            />
+          )}
+          {reportePeriodo === 'mes' && (
+            <input 
+              type="month" 
+              value={reporteMes} 
+              onChange={e => setReporteMes(e.target.value)}
+              className="w-full p-3 rounded-xl border-2 mb-4 bg-transparent font-black text-sm"
+            />
+          )}
+
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div className="text-center">
+              <p className="text-[9px] font-black uppercase opacity-50">💰 Ingresos</p>
+              <p className="text-2xl font-black text-green-600">${reporteIngresos.toLocaleString('es-CO')}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[9px] font-black uppercase opacity-50">✅ Deudas Pagadas</p>
+              <p className="text-2xl font-black text-orange-600">{reporteDeudasPagadas}</p>
+            </div>
+          </div>
         </div>
 
         {/* BUSCADOR MEJORADO */}
@@ -375,19 +463,16 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-6">
-                    {/* ENLACE A ÁLBUM DE RECUERDOS */}
                     <Link href="/recuerdos" className="flex items-center justify-between p-5 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-[2rem] font-black uppercase italic shadow-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95 group">
                         <span className="flex items-center gap-3"><span className="text-3xl group-hover:rotate-12 transition-transform">📸</span> Álbum de Recuerdos</span>
                         <span className="text-2xl group-hover:translate-x-1 transition-transform">→</span>
                     </Link>
 
-                    {/* ✨ NUEVO: ENLACE A GESTIÓN DE PRODUCTOS */}
                     <Link href="/productos" className="flex items-center justify-between p-5 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-[2rem] font-black uppercase italic shadow-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95 group">
                         <span className="flex items-center gap-3"><span className="text-3xl group-hover:rotate-12 transition-transform">🍴</span> Gestionar Menú</span>
                         <span className="text-2xl group-hover:translate-x-1 transition-transform">→</span>
                     </Link>
 
-                    {/* LISTA DE COMPRAS */}
                     <section className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 p-5 rounded-[2rem] border border-cyan-500/20">
                         <h3 className="text-[11px] font-black uppercase text-cyan-600 mb-4 tracking-widest flex items-center gap-2">🛒 <span>Lista de Compras</span></h3>
                         <form onSubmit={agregarCompra} className="flex gap-2 mb-4">
@@ -404,7 +489,6 @@ export default function Dashboard() {
                         </div>
                     </section>
 
-                    {/* PENDIENTES */}
                     <section className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 p-5 rounded-[2rem] border border-purple-500/20">
                         <h3 className="text-[11px] font-black uppercase text-purple-600 mb-4 tracking-widest flex items-center gap-2">📝 <span>Pendientes</span></h3>
                         <form onSubmit={agregarTodo} className="flex gap-2 mb-4">
@@ -443,7 +527,6 @@ export default function Dashboard() {
         </Link>
       </nav>
 
-      {/* UN SOLO BLOQUE DE ESTILOS AL FINAL */}
       <style jsx>{`
         @keyframes marquee {
           0% { transform: translateX(0); }
