@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useTheme } from '@/context/ThemeContext'
 import Link from 'next/link'
 import AdminGuard from '@/components/AdminGuard'
+import { toast } from 'sonner'
 
 function DetallesClienteContent() {
   const searchParams = useSearchParams()
@@ -16,6 +17,13 @@ function DetallesClienteContent() {
   const [cargando, setCargando] = useState(true)
   const [historialPagados, setHistorialPagados] = useState([])
   const [mostrarHistorial, setMostrarHistorial] = useState(false)
+  
+  // Estados para abono parcial
+  const [showAbonoModal, setShowAbonoModal] = useState(false)
+  const [deudaSeleccionada, setDeudaSeleccionada] = useState(null)
+  const [montoAbono, setMontoAbono] = useState('')
+  const [notaAbono, setNotaAbono] = useState('')
+  const [abonando, setAbonando] = useState(false)
   
   // Estados para el PIN de seguridad
   const [guardOpen, setGuardOpen] = useState(false)
@@ -37,14 +45,80 @@ function DetallesClienteContent() {
     setCargando(false)
   }
 
-  // Función que se ejecuta tras poner el PIN correcto
+  // Función para registrar un abono parcial
+  const registrarAbono = async () => {
+    if (!deudaSeleccionada) return
+    const abonoMonto = Number(montoAbono)
+    
+    if (abonoMonto <= 0) {
+      toast.error("Ingresa un monto válido para el abono")
+      return
+    }
+    
+    if (abonoMonto >= deudaSeleccionada.monto_total) {
+      toast.error("Para pagar la deuda completa usa el botón PAGAR")
+      return
+    }
+    
+    setAbonando(true)
+    
+    try {
+      // Calcular nuevo monto de la deuda
+      const nuevoMonto = deudaSeleccionada.monto_total - abonoMonto
+      
+      // Actualizar la deuda existente
+      const { error: updateError } = await supabase
+        .from('fiados')
+        .update({ 
+          monto_total: nuevoMonto,
+          notas: notaAbono ? `${deudaSeleccionada.notas || ''} | ABONO: $${abonoMonto} - ${notaAbono.toUpperCase()}` : `${deudaSeleccionada.notas || ''} | ABONO: $${abonoMonto}`
+        })
+        .eq('id', deudaSeleccionada.id)
+      
+      if (updateError) throw updateError
+      
+      // Registrar el abono en una tabla de historial de abonos (opcional)
+      // Para mantener historial, podríamos crear una tabla 'abonos'
+      // Por ahora actualizamos la nota de la deuda
+      
+      toast.success(`✅ Abono de $${abonoMonto.toLocaleString()} registrado correctamente`)
+      setShowAbonoModal(false)
+      setMontoAbono('')
+      setNotaAbono('')
+      setDeudaSeleccionada(null)
+      fetchDatos()
+    } catch (err) {
+      toast.error("Error al registrar el abono: " + err.message)
+    } finally {
+      setAbonando(false)
+    }
+  }
+
+  // Función que se ejecuta tras poner el PIN correcto para pagos completos
   const confirmarAccion = async () => {
     if (accionPendiente?.tipo === 'PAGAR_UNO') {
-      await supabase.from('fiados').update({ estado: 'pagado' }).eq('id', accionPendiente.id)
-      toast.success("✅ Deuda pagada correctamente")
+      const { error } = await supabase
+        .from('fiados')
+        .update({ estado: 'pagado' })
+        .eq('id', accionPendiente.id)
+      
+      if (error) {
+        toast.error("Error al pagar la deuda")
+      } else {
+        toast.success("✅ Deuda pagada correctamente")
+      }
     } else if (accionPendiente?.tipo === 'PAGAR_TODO') {
-      await supabase.from('fiados').update({ estado: 'pagado' }).eq('cliente_id', clienteId).eq('estado', 'pendiente')
-      toast.success("✅ Todas las deudas han sido pagadas")
+      const { error } = await supabase
+        .from('fiados')
+        .update({ estado: 'pagado' })
+        .eq('cliente_id', clienteId)
+        .eq('estado', 'pendiente')
+      
+      if (error) {
+        toast.error("Error al pagar todas las deudas")
+      } else {
+        toast.success("✅ Todas las deudas han sido pagadas")
+      }
     }
     fetchDatos()
     setAccionPendiente(null)
@@ -94,6 +168,84 @@ function DetallesClienteContent() {
         onConfirm={confirmarAccion} 
         darkMode={darkMode} 
       />
+
+      {/* MODAL DE ABONO */}
+      {showAbonoModal && deudaSeleccionada && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fadeIn">
+          <div className={`w-full max-w-md rounded-[2rem] p-6 shadow-2xl transform transition-all duration-300 animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-slate-700' : 'bg-white'}`}>
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-orange-500/20">
+              <h3 className="text-xl font-black uppercase flex items-center gap-2">
+                💰 Abono Parcial
+              </h3>
+              <button 
+                onClick={() => setShowAbonoModal(false)}
+                className="bg-black/10 hover:bg-black/20 w-8 h-8 rounded-full font-bold transition-all duration-300"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-[10px] font-black uppercase opacity-60">Producto</p>
+                <p className="font-black text-lg">{deudaSeleccionada.productos?.nombre}</p>
+              </div>
+              
+              <div>
+                <p className="text-[10px] font-black uppercase opacity-60">Deuda actual</p>
+                <p className="font-black text-2xl text-orange-600">${deudaSeleccionada.monto_total.toLocaleString('es-CO')}</p>
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-black uppercase mb-2 opacity-60 flex items-center gap-2">
+                  <span>💰</span> Monto del abono
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl opacity-50">$</span>
+                  <input 
+                    type="number" 
+                    value={montoAbono}
+                    onChange={(e) => setMontoAbono(e.target.value)}
+                    max={deudaSeleccionada.monto_total - 1}
+                    className={`w-full p-4 pl-12 rounded-2xl border-2 font-black transition-all duration-300 focus:ring-2 focus:ring-orange-500/50 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-200 text-black'}`}
+                    placeholder="0"
+                  />
+                </div>
+                <p className="text-[8px] opacity-50 mt-1">Máximo: ${(deudaSeleccionada.monto_total - 1).toLocaleString()}</p>
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-black uppercase mb-2 opacity-60 flex items-center gap-2">
+                  <span>📝</span> Nota del abono (opcional)
+                </label>
+                <textarea 
+                  value={notaAbono}
+                  onChange={(e) => setNotaAbono(e.target.value)}
+                  placeholder="EJ: ABONÓ $10,000, QUEDA DEBE..."
+                  rows="2"
+                  className={`w-full p-3 rounded-xl border-2 text-sm font-medium transition-all focus:ring-2 focus:ring-orange-500/50 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-200 text-black'}`}
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => setShowAbonoModal(false)}
+                  className="flex-1 py-3 rounded-xl font-black text-sm border-2 opacity-60 hover:opacity-100 transition"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={registrarAbono}
+                  disabled={abonando || !montoAbono || Number(montoAbono) <= 0}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-green-500 text-white py-3 rounded-xl font-black text-sm shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                >
+                  {abonando ? 'REGISTRANDO...' : 'REGISTRAR ABONO'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HEADER MEJORADO */}
       <div className="bg-gradient-to-br from-orange-600 via-orange-500 to-orange-700 p-6 pt-8 rounded-b-[3rem] shadow-2xl text-white relative overflow-hidden">
@@ -200,7 +352,7 @@ function DetallesClienteContent() {
             deudas.map((d, index) => (
               <div 
                 key={d.id} 
-                className={`${cardBg} p-5 rounded-[2rem] border-2 flex justify-between items-center transition-all duration-300 hover:shadow-xl hover:scale-[1.02]`}
+                className={`${cardBg} p-5 rounded-[2rem] border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02]`}
                 style={{animationDelay: `${index * 50}ms`}}
               >
                 <div className="flex-1">
@@ -214,7 +366,7 @@ function DetallesClienteContent() {
                       </span>
                     )}
                   </div>
-                  <h3 className="text-xl font-black uppercase leading-tight group-hover/link:text-orange-600 transition-colors">
+                  <h3 className="text-xl font-black uppercase leading-tight">
                     {d.productos?.nombre}
                   </h3>
                   {d.cantidad > 1 && (
@@ -229,12 +381,25 @@ function DetallesClienteContent() {
                     ${d.monto_total.toLocaleString('es-CO')}
                   </p>
                 </div>
-                <button 
-                  onClick={() => { setAccionPendiente({ tipo: 'PAGAR_UNO', id: d.id }); setGuardOpen(true); }}
-                  className="bg-gradient-to-r from-green-500 to-green-600 text-white px-5 py-3 rounded-xl font-black text-sm shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-xl flex items-center gap-2"
-                >
-                  💰 PAGAR
-                </button>
+                <div className="flex gap-2 mt-3">
+                  <button 
+                    onClick={() => { 
+                      setDeudaSeleccionada(d)
+                      setMontoAbono('')
+                      setNotaAbono('')
+                      setShowAbonoModal(true)
+                    }}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-black text-xs shadow-lg transition-all duration-300 hover:scale-105 active:scale-95"
+                  >
+                    💵 ABONAR
+                  </button>
+                  <button 
+                    onClick={() => { setAccionPendiente({ tipo: 'PAGAR_UNO', id: d.id }); setGuardOpen(true); }}
+                    className="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-xl font-black text-xs shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-xl"
+                  >
+                    💰 PAGAR
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -261,11 +426,24 @@ function DetallesClienteContent() {
       {/* ESTILOS GLOBALES */}
       <style jsx global>{`
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         .animate-fadeIn {
-          animation: fadeIn 0.5s ease-out;
+          animation: fadeIn 0.3s ease-out;
+        }
+        .animate-slideUp {
+          animation: slideUp 0.3s ease-out;
         }
       `}</style>
     </div>
