@@ -1,14 +1,15 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["./src/*"]
     },
     "jsx": "preserve",
     "checkJs": false,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "types": [] 
+    "types": []
   },
   "exclude": [
     "node_modules",
