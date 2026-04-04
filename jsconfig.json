@@ -1,12 +1,11 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["./src/*"]
     },
     "jsx": "preserve",
     "checkJs": false,
+    "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "types": []

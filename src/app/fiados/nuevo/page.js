@@ -15,8 +15,15 @@ export default function NuevoFiado() {
   const [clienteId, setClienteId] = useState('')
   
   // CORRECCIÓN DE FECHA: Usamos sv-SE para obtener YYYY-MM-DD en hora local
-  const fechaHoyLocal = new Date().toLocaleDateString('sv-SE')
-  const [fecha, setFecha] = useState(fechaHoyLocal)
+  const getHoyLocal = () => new Date().toLocaleDateString('sv-SE')
+  const [fecha, setFecha] = useState(getHoyLocal())
+  
+  // Función para mostrar la fecha en formato DD/MM/AAAA
+  const formatearFecha = (f) => {
+    if (!f) return ''
+    const [year, month, day] = f.split('-')
+    return `${day}/${month}/${year}`
+  }
   
   const [itemsVenta, setItemsVenta] = useState([{ productoId: '', cantidad: 1, subtotal: 0 }])
   const [abono, setAbono] = useState(0)
@@ -88,7 +95,7 @@ export default function NuevoFiado() {
           producto_id: item.productoId,
           cantidad: parseInt(item.cantidad),
           monto_total: montoNeto,
-          creado_el: fecha, // Enviamos la fecha local corregida
+          creado_el: `${fecha}T12:00:00`, // Enviamos mediodía local para evitar desfases de zona horaria
           evidencia_url: urlEvidencia,
           notas: notas.toUpperCase(),
           estado: montoNeto <= 0 ? 'pagado' : 'pendiente'
@@ -145,8 +152,27 @@ export default function NuevoFiado() {
 
           {/* FECHA CORREGIDA */}
           <div>
-            <label className="block text-[10px] font-black uppercase mb-2 opacity-60">📅 Fecha de la Venta</label>
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputStyle} />
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-[10px] font-black uppercase opacity-60">📅 Fecha de la Venta</label>
+              <span className="text-[10px] font-black text-orange-600 bg-orange-500/10 px-2 py-0.5 rounded-full">
+                Vista: {formatearFecha(fecha)}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <input 
+                type="date" 
+                value={fecha} 
+                onChange={e => setFecha(e.target.value)} 
+                className={`${inputStyle} flex-1`} 
+              />
+              <button 
+                type="button"
+                onClick={() => setFecha(getHoyLocal())}
+                className="bg-orange-500/20 text-orange-600 px-4 rounded-2xl font-black text-xs hover:bg-orange-500/30 transition-all"
+              >
+                HOY
+              </button>
+            </div>
           </div>
 
           <div>
