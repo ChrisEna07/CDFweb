@@ -29,12 +29,17 @@ export default function Dashboard() {
   const [showStats, setShowStats] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [accionPendiente, setAccionPendiente] = useState(null)
-  // Estados para reportes
+  // ✅ CORRECCIÓN DE FECHAS LOCALES
+  const getHoyLocal = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   const [reportePeriodo, setReportePeriodo] = useState('dia')
   const [reporteIngresos, setReporteIngresos] = useState(0)
   const [reporteDeudasPagadas, setReporteDeudasPagadas] = useState(0)
-  const [reporteFecha, setReporteFecha] = useState(new Date().toISOString().split('T')[0])
-  const [reporteMes, setReporteMes] = useState(new Date().toISOString().slice(0, 7)) // ✅ CORREGIDO
+  const [reporteFecha, setReporteFecha] = useState(getHoyLocal())
+  const [reporteMes, setReporteMes] = useState(getHoyLocal().slice(0, 7))
   const [reporteSemana, setReporteSemana] = useState(getSemanaActual())
   // --- 📝 ESTADOS PARA FUNCIONES ---
   const [todos, setTodos] = useState([])
@@ -62,24 +67,36 @@ export default function Dashboard() {
   function getSemanaActual() {
     const today = new Date()
     const firstDay = new Date(today)
-    const lastDay = new Date(today)
     const day = today.getDay()
     const diff = day === 0 ? 6 : day - 1
     firstDay.setDate(today.getDate() - diff)
+    
+    const lastDay = new Date(firstDay)
     lastDay.setDate(firstDay.getDate() + 6)
-    return `${firstDay.toISOString().split('T')[0]} / ${lastDay.toISOString().split('T')[0]}`
+    
+    const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return `${fmt(firstDay)} / ${fmt(lastDay)}`
   }
   function calcularReporte() {
     const pagados = fiados.filter(f => f.estado === 'pagado')
     
     let filtrados = []
     if (reportePeriodo === 'dia') {
-      filtrados = pagados.filter(f => f.creado_el.split('T')[0] === reporteFecha)
+      filtrados = pagados.filter(f => {
+        const dLocal = new Date(f.creado_el).toLocaleDateString('sv-SE')
+        return dLocal === reporteFecha
+      })
     } else if (reportePeriodo === 'semana') {
       const [inicio, fin] = reporteSemana.split(' / ')
-      filtrados = pagados.filter(f => f.creado_el.split('T')[0] >= inicio && f.creado_el.split('T')[0] <= fin)
+      filtrados = pagados.filter(f => {
+        const dLocal = new Date(f.creado_el).toLocaleDateString('sv-SE')
+        return dLocal >= inicio && dLocal <= fin
+      })
     } else if (reportePeriodo === 'mes') {
-      filtrados = pagados.filter(f => f.creado_el.startsWith(reporteMes))
+      filtrados = pagados.filter(f => {
+        const dLocal = new Date(f.creado_el).toLocaleDateString('sv-SE')
+        return dLocal.startsWith(reporteMes)
+      })
     }
     
     const totalIngresosReporte = filtrados.reduce((acc, curr) => acc + Number(curr.monto_total), 0)

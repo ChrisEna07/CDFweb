@@ -14,8 +14,11 @@ export default function NuevoFiado() {
   
   const [clienteId, setClienteId] = useState('')
   
-  // CORRECCIÓN DE FECHA: Usamos sv-SE para obtener YYYY-MM-DD en hora local
-  const getHoyLocal = () => new Date().toLocaleDateString('sv-SE')
+  // CORRECCIÓN DE FECHA: Función robusta para obtener YYYY-MM-DD en hora local
+  const getHoyLocal = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
   const [fecha, setFecha] = useState(getHoyLocal())
   
   // Función para mostrar la fecha en formato DD/MM/AAAA
@@ -90,12 +93,17 @@ export default function NuevoFiado() {
         const factor = totalConsumo > 0 ? (item.subtotal / totalConsumo) : 0
         const montoNeto = item.subtotal - (abono * factor)
 
+        // Combinamos la fecha seleccionada con la hora actual para mantener precisión
+        const ahora = new Date();
+        const [anio, mes, dia] = fecha.split('-').map(Number);
+        const fechaConHora = new Date(anio, mes - 1, dia, ahora.getHours(), ahora.getMinutes(), ahora.getSeconds());
+
         return {
           cliente_id: clienteId,
           producto_id: item.productoId,
           cantidad: parseInt(item.cantidad),
           monto_total: montoNeto,
-          creado_el: `${fecha}T12:00:00`, // Enviamos mediodía local para evitar desfases de zona horaria
+          creado_el: fechaConHora.toISOString(), 
           evidencia_url: urlEvidencia,
           notas: notas.toUpperCase(),
           estado: montoNeto <= 0 ? 'pagado' : 'pendiente'
