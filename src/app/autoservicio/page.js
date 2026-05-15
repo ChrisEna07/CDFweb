@@ -12,6 +12,10 @@ export default function Autoservicio() {
     const [productos, setProductos] = useState([])
     const [carrito, setCarrito] = useState([])
     const [nombreCliente, setNombreCliente] = useState('')
+    const [apodoCliente, setApodoCliente] = useState('')
+    const [listaClientes, setListaClientes] = useState([])
+    const [clienteId, setClienteId] = useState('')
+    const [isNuevo, setIsNuevo] = useState(false)
     const [enviado, setEnviado] = useState(false)
     const [loading, setLoading] = useState(false)
     const [showMenu, setShowMenu] = useState(false)
@@ -22,8 +26,12 @@ export default function Autoservicio() {
     }, [])
 
     async function fetchProductos() {
-        const { data } = await supabase.from('productos').select('*').order('nombre')
-        if (data) setProductos(data)
+        const [resProd, resCli] = await Promise.all([
+            supabase.from('productos').select('*').order('nombre'),
+            supabase.from('clientes').select('id, apodo, nombre').order('apodo')
+        ])
+        if (resProd.data) setProductos(resProd.data)
+        if (resCli.data) setListaClientes(resCli.data)
     }
 
     const agregarAlCarrito = (p) => {
@@ -34,53 +42,51 @@ export default function Autoservicio() {
     const total = carrito.reduce((acc, p) => acc + Number(p.precio), 0)
 
     async function enviarSolicitud() {
-        if (!nombreCliente || carrito.length === 0) return toast.error("Ingresa tu nombre y elige productos")
+        if (carrito.length === 0) return toast.error("Elige productos primero")
+        if (!isNuevo && !clienteId) return toast.error("Selecciona tu nombre o regístrate")
+        if (isNuevo && (!nombreCliente || !apodoCliente)) return toast.error("Completa tus datos de registro")
+        
         setLoading(true)
         try {
             const detalleStr = carrito.map(p => p.nombre).join(', ')
-            
-            // 1. Buscar si el cliente existe (por apodo o nombre)
-            const { data: cliente, error: searchError } = await supabase
-                .from('clientes')
-                .select('id, apodo')
-                .or(`apodo.ilike.${nombreCliente},nombre.ilike.${nombreCliente}`)
-                .maybeSingle()
+            let targetClienteId = clienteId
+            let finalNombre = ""
 
-            if (cliente) {
-                // 2. Si existe, registrar el fiado automáticamente
-                const { error: fiadoError } = await supabase.from('fiados').insert([{
-                    cliente_id: cliente.id,
-                    monto_total: total,
-                    estado: 'pendiente',
-                    creado_el: new Date().toISOString()
-                    // Si tu tabla fiados tiene columna 'detalle', podrías guardarlo aquí
-                }])
+            // 1. Si es nuevo, crearlo con estado pendiente
+            if (isNuevo) {
+                const { data: newCli, error: cliErr } = await supabase.from('clientes').insert([{
+                    nombre: nombreCliente.toUpperCase(),
+                    apodo: apodoCliente.toUpperCase(),
+                    notas: 'PENDIENTE_APROBACION'
+                }]).select().single()
                 
-                if (fiadoError) throw fiadoError
-                
-                await supabase.from('logs').insert([{
-                    usuario: "CLIENTE_QR",
-                    accion: "AUTO_FIADO",
-                    detalle: `Fiado de ${nombreCliente.toUpperCase()}: ${detalleStr}. Total: $${total}`,
-                    fecha: new Date().toISOString()
-                }])
-
-                setEnviado(true)
-                toast.success("¡Fiado registrado con éxito!")
+                if (cliErr) throw cliErr
+                targetClienteId = newCli.id
+                finalNombre = apodoCliente
             } else {
-                // 3. Si no existe, mostrar mensaje de advertencia
-                toast.error("Tu nombre no está registrado. Dile al vendedor que cree tu perfil.", {
-                    duration: 6000,
-                    style: { background: '#ef4444', color: '#fff', fontWeight: 'bold' }
-                })
-                
-                await supabase.from('logs').insert([{
-                    usuario: "CLIENTE_QR",
-                    accion: "INTENTO_FALLIDO_FIADO",
-                    detalle: `Nombre no encontrado: ${nombreCliente}. Intentó fiar: ${detalleStr}`,
-                    fecha: new Date().toISOString()
-                }])
+                finalNombre = listaClientes.find(c => c.id === clienteId)?.apodo || ""
             }
+
+            // 2. Registrar el fiado
+            const { error: fiadoError } = await supabase.from('fiados').insert([{
+                cliente_id: targetClienteId,
+                monto_total: total,
+                estado: 'pendiente',
+                creado_el: new Date().toISOString(),
+                notas: isNuevo ? 'REGISTRO PENDIENTE' : ''
+            }])
+            
+            if (fiadoError) throw fiadoError
+            
+            await supabase.from('logs').insert([{
+                usuario: "CLIENTE_QR",
+                accion: "AUTO_FIADO",
+                detalle: `Fiado de ${finalNombre.toUpperCase()}${isNuevo ? ' (NUEVO REGISTRO)' : ''}: ${detalleStr}. Total: $${total}`,
+                fecha: new Date().toISOString()
+            }])
+
+            setEnviado(true)
+            toast.success("¡Solicitud enviada con éxito!")
         } catch (e) {
             console.error(e)
             toast.error("Error al procesar la solicitud")
@@ -124,14 +130,50 @@ export default function Autoservicio() {
                 </div>
             </div>
 
-            <section className="mb-8">
-                <input 
-                    type="text" 
-                    value={nombreCliente}
-                    onChange={e => setNombreCliente(e.target.value)}
-                    placeholder="¿Cuál es tu nombre/apodo?"
-                    className="w-full p-5 rounded-2xl border-4 border-purple-100 outline-none focus:border-purple-500 transition-all font-black uppercase text-center text-lg"
-                />
+            <section className="mb-8 space-y-4">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border-2 border-purple-100 dark:border-slate-800 shadow-sm">
+                    <label className="block text-[10px] font-black uppercase opacity-40 mb-2 px-2">¿Quién eres?</label>
+                    <select 
+                        value={isNuevo ? 'nuevo' : clienteId}
+                        onChange={e => {
+                            if (e.target.value === 'nuevo') {
+                                setIsNuevo(true)
+                                setClienteId('')
+                            } else {
+                                setIsNuevo(false)
+                                setClienteId(e.target.value)
+                            }
+                        }}
+                        className="w-full p-3 rounded-xl border-2 border-gray-100 dark:border-slate-800 outline-none focus:border-purple-500 transition-all font-black uppercase text-sm bg-transparent"
+                    >
+                        <option value="">-- SELECCIONA TU NOMBRE --</option>
+                        {listaClientes.map(c => (
+                            <option key={c.id} value={c.id}>{c.apodo}</option>
+                        ))}
+                        <option value="nuevo" className="text-purple-600">➕ NO ESTOY EN LA LISTA (REGISTRARME)</option>
+                    </select>
+                </div>
+
+                {isNuevo && (
+                    <div className="bg-purple-600/5 p-6 rounded-[2.5rem] border-2 border-purple-500/20 space-y-4 animate-fadeIn">
+                        <p className="text-[10px] font-black uppercase text-purple-600 text-center mb-2">Registro de Nuevo Cliente</p>
+                        <input 
+                            type="text" 
+                            value={nombreCliente}
+                            onChange={e => setNombreCliente(e.target.value)}
+                            placeholder="Nombre Completo"
+                            className="w-full p-4 rounded-2xl border-2 border-white outline-none focus:border-purple-500 transition-all font-black uppercase text-sm"
+                        />
+                        <input 
+                            type="text" 
+                            value={apodoCliente}
+                            onChange={e => setApodoCliente(e.target.value)}
+                            placeholder="Apodo (Cómo te conocen)"
+                            className="w-full p-4 rounded-2xl border-2 border-white outline-none focus:border-purple-500 transition-all font-black uppercase text-sm"
+                        />
+                        <p className="text-[9px] font-bold text-center opacity-50 uppercase">Tu registro será aprobado por el vendedor en un momento</p>
+                    </div>
+                )}
             </section>
 
             <div className="grid grid-cols-2 gap-4">

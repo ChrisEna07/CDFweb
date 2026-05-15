@@ -56,6 +56,19 @@ export default function ListaClientes() {
       setClienteSeleccionado(null)
     }
   }
+  
+  const aprobarCliente = async (id) => {
+    const { error } = await supabase
+      .from('clientes')
+      .update({ notas: '' })
+      .eq('id', id)
+    
+    if (error) toast.error("Error al aprobar")
+    else {
+      toast.success("✅ Cliente aprobado con éxito")
+      fetchClientes()
+    }
+  }
 
   // Filtrar clientes por búsqueda
   const clientesFiltrados = clientes.filter(c => 
@@ -168,6 +181,20 @@ export default function ListaClientes() {
                       <p className={`text-[10px] uppercase mt-1 opacity-50 ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>
                         {cliente.nombre}
                       </p>
+                    )}
+                    {cliente.notas === 'PENDIENTE_APROBACION' && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="bg-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full animate-pulse">PENDIENTE</span>
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            aprobarCliente(cliente.id);
+                          }}
+                          className="bg-green-600 text-white text-[9px] font-black px-3 py-1 rounded-lg hover:bg-green-700 transition-all shadow-md active:scale-95"
+                        >
+                          APROBAR REGISTRO
+                        </button>
+                      </div>
                     )}
                   </Link>
                   

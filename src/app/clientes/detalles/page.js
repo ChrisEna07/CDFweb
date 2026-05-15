@@ -176,6 +176,16 @@ function DetallesClienteContent() {
         toast.success("✅ Todas las deudas han sido pagadas")
         registrarLog("PAGO_TOTAL", `Pago de todas las deudas de ${cliente.apodo}`)
       }
+    } else if (accionPendiente?.tipo === 'ABONAR') {
+      setDeudaSeleccionada(accionPendiente.data)
+      setMontoAbono('')
+      setNotaAbono('')
+      setShowAbonoModal(true)
+    } else if (accionPendiente?.tipo === 'CORREGIR') {
+      setEditDeuda(accionPendiente.data)
+      setNuevoMonto(accionPendiente.data.monto_total)
+      setNuevasNotas(accionPendiente.data.notas || '')
+      setShowEditModal(true)
     }
     fetchDatos()
     setAccionPendiente(null)
@@ -470,15 +480,8 @@ function DetallesClienteContent() {
                 <div className="flex gap-2 mt-3">
                   <button 
                     onClick={() => { 
-                      const pin = prompt("🔐 Clave Admin para abonar:")
-                      if (['1407', '3008'].includes(pin)) {
-                        setDeudaSeleccionada(d)
-                        setMontoAbono('')
-                        setNotaAbono('')
-                        setShowAbonoModal(true)
-                      } else {
-                        toast.error("Clave incorrecta")
-                      }
+                      setAccionPendiente({ tipo: 'ABONAR', data: d });
+                      setGuardOpen(true);
                     }}
                     className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-black text-xs shadow-lg transition-all duration-300 hover:scale-105 active:scale-95"
                   >
@@ -492,15 +495,8 @@ function DetallesClienteContent() {
                   </button>
                   <button 
                     onClick={() => { 
-                      const pin = prompt("🔐 Clave Admin para corregir:")
-                      if (['1407', '3008'].includes(pin)) {
-                        setEditDeuda(d)
-                        setNuevoMonto(d.monto_total)
-                        setNuevasNotas(d.notas || '')
-                        setShowEditModal(true)
-                      } else {
-                        toast.error("Clave incorrecta")
-                      }
+                      setAccionPendiente({ tipo: 'CORREGIR', data: d });
+                      setGuardOpen(true);
                     }}
                     className="bg-gray-200 text-gray-700 dark:bg-slate-800 dark:text-gray-300 px-3 py-2 rounded-xl font-black text-[10px] shadow transition-all duration-300 hover:scale-105 active:scale-95"
                   >

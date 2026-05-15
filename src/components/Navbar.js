@@ -11,7 +11,7 @@ export default function Navbar({ onMenuClick }) {
   if (pathname === '/autoservicio') return null
 
   return (
-    <nav className={`${darkMode ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-orange-200'} backdrop-blur-xl fixed bottom-6 left-4 right-4 border-4 rounded-[3rem] p-3 flex justify-around items-center z-50 shadow-2xl animate-slideUp`}>
+    <nav className={`${darkMode ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-orange-200'} backdrop-blur-xl fixed bottom-6 left-4 right-4 border-4 rounded-[3rem] p-3 flex justify-around items-center z-50 shadow-2xl animate-slideUpSmooth`}>
       <Link href="/" className={`flex flex-col items-center group ${pathname === '/' ? 'text-orange-600' : 'opacity-60'}`}>
         <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">🏠</span>
         <span className="text-[8px] font-black uppercase">Inicio</span>
@@ -34,16 +34,6 @@ export default function Navbar({ onMenuClick }) {
         <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">☰</span>
         <span className="text-[8px] font-black uppercase">Menú</span>
       </button>
-
-      <style jsx>{`
-        @keyframes slideUp {
-          from { transform: translateY(100px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-        .animate-slideUp {
-          animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-      `}</style>
     </nav>
   )
 }

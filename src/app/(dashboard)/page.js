@@ -70,6 +70,7 @@ export default function Dashboard() {
   const [atendenteLogueado, setAtendenteLogueado] = useState(null)
   const [showQRModal, setShowQRModal] = useState(false)
   const [showAtendentesModal, setShowAtendentesModal] = useState(false)
+  const [modalConfig, setModalConfig] = useState({ show: false, title: '', message: '', type: 'pin', onConfirm: null, value: '', inputPlaceholder: '' })
   
   const ADMIN_PIN = '1407'
 
@@ -1117,7 +1118,15 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <button 
-                        onClick={() => { if(confirm("¿Estás seguro de reiniciar el ciclo? Esto registrará el pago total.")) registrarPagoTotal() }}
+                        onClick={() => {
+                          setModalConfig({
+                            show: true,
+                            title: 'Reiniciar Ciclo',
+                            message: '¿Estás seguro de reiniciar el ciclo? Esto registrará el pago total.',
+                            type: 'confirm',
+                            onConfirm: registrarPagoTotal
+                          })
+                        }}
                         className="w-full py-4 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-2xl font-black uppercase shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
                       >
                         <span>✅ Pago Total y Reiniciar</span>
@@ -1338,15 +1347,22 @@ export default function Dashboard() {
                 <button 
                   key={a.nombre}
                   onClick={() => {
-                    const pin = prompt(`Ingresa PIN de ${a.nombre}:`)
-                    if (pin === a.pin) {
-                      setAtendenteLogueado(a)
-                      localStorage.setItem('atendente_logueado', JSON.stringify(a))
-                      toast.success(`Bienvenido ${a.nombre}`)
-                      setShowAtendentesModal(false)
-                    } else {
-                      toast.error("PIN Incorrecto")
-                    }
+                    setModalConfig({
+                      show: true,
+                      title: `PIN de ${a.nombre}`,
+                      message: `Ingresa el código de acceso para ${a.nombre}`,
+                      type: 'pin',
+                      onConfirm: (pin) => {
+                        if (pin === a.pin) {
+                          setAtendenteLogueado(a)
+                          localStorage.setItem('atendente_logueado', JSON.stringify(a))
+                          toast.success(`Bienvenido ${a.nombre}`)
+                          setShowAtendentesModal(false)
+                        } else {
+                          toast.error("PIN Incorrecto")
+                        }
+                      }
+                    })
                   }}
                   className={`py-3 rounded-xl font-black uppercase text-xs transition-all border-2 ${atendenteLogueado?.nombre === a.nombre ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-transparent border-gray-200 opacity-60 dark:border-slate-700'}`}
                 >
@@ -1355,19 +1371,34 @@ export default function Dashboard() {
               ))}
               <button 
                 onClick={() => {
-                   const pin = prompt("Ingresa clave Admin (Maria) para agregar personal:")
-                   if (pin === '1407') {
-                     const nuevo = prompt("Nombre del nuevo personal:").toUpperCase()
-                     const nuevoPin = prompt(`Asigna un PIN para ${nuevo}:`)
-                     if (nuevo && nuevoPin) {
-                       const nuevaLista = [...atendentes, { nombre: nuevo, pin: nuevoPin }]
-                       setAtendentes(nuevaLista)
-                       localStorage.setItem('atendentes_lista', JSON.stringify(nuevaLista))
-                       toast.success(`${nuevo} agregado con éxito`)
+                   setModalConfig({
+                     show: true,
+                     title: 'Acceso Admin',
+                     message: 'Ingresa la clave de Maria para gestionar personal',
+                     type: 'pin',
+                     onConfirm: (pin) => {
+                       if (pin === '1407') {
+                         setModalConfig({
+                           show: true,
+                           title: 'Nuevo Atendente',
+                           message: 'Ingresa el nombre y el PIN separados por coma (Ej: JUAN, 1234)',
+                           type: 'input',
+                           inputPlaceholder: 'NOMBRE, PIN',
+                           onConfirm: (val) => {
+                             const [n, p] = val.split(',').map(s => s.trim())
+                             if (n && p) {
+                               const nuevaLista = [...atendentes, { nombre: n.toUpperCase(), pin: p }]
+                               setAtendentes(nuevaLista)
+                               localStorage.setItem('atendentes_lista', JSON.stringify(nuevaLista))
+                               toast.success(`${n} agregado con éxito`)
+                             }
+                           }
+                         })
+                       } else {
+                         toast.error("Acceso denegado")
+                       }
                      }
-                   } else {
-                     toast.error("Acceso denegado")
-                   }
+                   })
                 }}
                 className="py-3 rounded-xl font-black uppercase text-[10px] bg-black/5 border-2 border-dashed border-gray-300 opacity-50 dark:border-slate-700 dark:text-white"
               >
@@ -1396,14 +1427,21 @@ export default function Dashboard() {
                 <button 
                   key={a.nombre}
                   onClick={() => {
-                    const pin = prompt(`Ingresa PIN de ${a.nombre}:`)
-                    if (pin === a.pin) {
-                      setAtendenteLogueado(a)
-                      localStorage.setItem('atendente_logueado', JSON.stringify(a))
-                      toast.success(`Bienvenido ${a.nombre}`)
-                    } else {
-                      toast.error("PIN Incorrecto")
-                    }
+                    setModalConfig({
+                      show: true,
+                      title: `Acceso: ${a.nombre}`,
+                      message: `Ingresa tu PIN de apertura`,
+                      type: 'pin',
+                      onConfirm: (pin) => {
+                        if (pin === a.pin) {
+                          setAtendenteLogueado(a)
+                          localStorage.setItem('atendente_logueado', JSON.stringify(a))
+                          toast.success(`Bienvenido ${a.nombre}`)
+                        } else {
+                          toast.error("PIN Incorrecto")
+                        }
+                      }
+                    })
                   }}
                   className={`py-3 rounded-xl font-black uppercase text-xs transition-all border-2 ${atendenteLogueado?.nombre === a.nombre ? 'bg-orange-600 border-orange-600 text-white shadow-lg' : 'bg-transparent border-gray-200 opacity-60 dark:border-slate-700'}`}
                 >
@@ -1543,36 +1581,62 @@ export default function Dashboard() {
         </div>
       )}
       <Navbar onMenuClick={() => setShowMenu(true)} />
-      <style jsx>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-marquee {
-          display: inline-block;
-          animation: marquee 20s linear infinite;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.5s ease-out;
-        }
-        .animate-slideUp {
-          animation: slideUp 0.4s ease-out;
-        }
-      `}</style>
+      {/* 💎 MODAL ELEGANTE (REEMPLAZA PROMPT/CONFIRM) */}
+      {modalConfig.show && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fadeIn">
+          <div className={`w-full max-w-sm rounded-[3rem] p-8 text-center shadow-2xl animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-white/10' : 'bg-white'}`}>
+            <h2 className="text-2xl font-black uppercase italic mb-2 bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">{modalConfig.title}</h2>
+            <p className="text-[10px] font-bold opacity-60 uppercase mb-8 tracking-widest">{modalConfig.message}</p>
+            
+            {modalConfig.type === 'pin' && (
+              <input 
+                type="password" 
+                autoFocus
+                placeholder="****"
+                className={`w-full p-5 rounded-2xl border-4 text-center text-2xl font-black mb-8 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-orange-500' : 'bg-orange-50 border-orange-100 focus:border-orange-500'}`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    modalConfig.onConfirm(e.target.value);
+                    setModalConfig({ ...modalConfig, show: false });
+                  }
+                }}
+              />
+            )}
+
+            {modalConfig.type === 'input' && (
+              <input 
+                type="text" 
+                autoFocus
+                placeholder={modalConfig.inputPlaceholder || "Escribe aquí..."}
+                className={`w-full p-4 rounded-2xl border-2 mb-8 outline-none transition-all font-black uppercase text-xs ${darkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-orange-500' : 'bg-white border-gray-100 focus:border-orange-500'}`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    modalConfig.onConfirm(e.target.value);
+                    setModalConfig({ ...modalConfig, show: false });
+                  }
+                }}
+              />
+            )}
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setModalConfig({ ...modalConfig, show: false })}
+                className="flex-1 py-4 bg-gray-200 dark:bg-slate-800 text-gray-500 rounded-2xl font-black uppercase text-xs active:scale-95 transition-all"
+              >Cancelar</button>
+              
+              <button 
+                onClick={() => {
+                  const input = document.querySelector(modalConfig.type === 'confirm' ? 'button' : 'input');
+                  const val = input?.value || '';
+                  modalConfig.onConfirm(val);
+                  setModalConfig({ ...modalConfig, show: false });
+                }}
+                className="flex-1 py-4 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all"
+              >Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
