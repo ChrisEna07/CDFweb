@@ -48,11 +48,27 @@ export default function Autoservicio() {
     }
 
     const agregarAlCarrito = (p) => {
-        setCarrito([...carrito, p])
+        setCarrito(prev => {
+            const existe = prev.find(item => item.id === p.id)
+            if (existe) {
+                return prev.map(item => item.id === p.id ? { ...item, cantidad: item.cantidad + 1 } : item)
+            }
+            return [...prev, { ...p, cantidad: 1 }]
+        })
         toast.success(`Añadido: ${p.nombre}`)
     }
 
-    const total = carrito.reduce((acc, p) => acc + Number(p.precio), 0)
+    const ajustarCantidad = (id, delta) => {
+        setCarrito(prev => prev.map(item => {
+            if (item.id === id) {
+                const nuevaCant = Math.max(0, item.cantidad + delta)
+                return { ...item, cantidad: nuevaCant }
+            }
+            return item
+        }).filter(item => item.cantidad > 0))
+    }
+
+    const total = carrito.reduce((acc, p) => acc + (Number(p.precio) * p.cantidad), 0)
 
     const clientesFiltrados = listaClientes.filter(c => 
         c.apodo.toLowerCase().includes(busquedaCliente.toLowerCase()) ||
@@ -93,7 +109,7 @@ export default function Autoservicio() {
         
         setLoading(true)
         try {
-            const detalleStr = carrito.map(p => p.nombre).join(', ')
+            const detalleStr = carrito.map(p => `${p.cantidad}x ${p.nombre}`).join(', ')
             let targetClienteId = finalClienteId
 
             // 1. Si es nuevo y no hubo coincidencia, crearlo
@@ -148,7 +164,10 @@ export default function Autoservicio() {
                         <p className="text-[10px] font-black uppercase opacity-70 mb-1">Total Pedido</p>
                         <p className="text-5xl font-black">${total.toLocaleString()}</p>
                     </div>
-                    <button onClick={() => { setEnviado(false); setCarrito([]); setBusquedaCliente(''); setClienteId(''); }} className="text-purple-600 font-black underline uppercase text-sm">Hacer otro pedido</button>
+                    <div className="flex flex-col gap-3">
+                        <button onClick={() => { setEnviado(false); setCarrito([]); setBusquedaCliente(''); setClienteId(''); }} className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black uppercase shadow-lg active:scale-95 transition-all">Hacer otro pedido</button>
+                        <button onClick={() => { window.location.href = '/'; }} className="text-purple-600 font-black underline uppercase text-sm opacity-50 hover:opacity-100 transition-opacity">Finalizar y Salir</button>
+                    </div>
                 </div>
             </div>
         )
@@ -253,17 +272,32 @@ export default function Autoservicio() {
             </section>
 
             <div className="grid grid-cols-2 gap-4">
-                {productos.map(p => (
-                    <button 
-                        key={p.id}
-                        onClick={() => agregarAlCarrito(p)}
-                        className={`p-4 rounded-3xl border-2 flex flex-col items-center gap-2 transition-all active:scale-95 ${darkMode ? 'bg-slate-900 border-slate-800 hover:border-purple-500 shadow-lg shadow-purple-500/5' : 'bg-white border-gray-100 shadow-sm hover:border-purple-500 hover:shadow-xl'}`}
-                    >
-                        <span className="text-4xl mb-1 animate-fadeIn">🥟</span>
-                        <span className="text-[11px] font-black uppercase text-center leading-tight">{p.nombre}</span>
-                        <span className="text-sm font-black text-purple-600">${Number(p.precio).toLocaleString()}</span>
-                    </button>
-                ))}
+                {productos.map(p => {
+                    const itemEnCarrito = carrito.find(item => item.id === p.id)
+                    return (
+                        <div 
+                            key={p.id}
+                            className={`p-4 rounded-3xl border-2 flex flex-col items-center gap-2 transition-all ${darkMode ? 'bg-slate-900 border-slate-800 shadow-lg shadow-purple-500/5' : 'bg-white border-gray-100 shadow-sm'}`}
+                        >
+                            <span className="text-4xl mb-1">🥟</span>
+                            <span className="text-[11px] font-black uppercase text-center leading-tight h-8 flex items-center">{p.nombre}</span>
+                            <span className="text-sm font-black text-purple-600">${Number(p.precio).toLocaleString()}</span>
+                            
+                            <div className="flex items-center gap-3 mt-2 bg-purple-500/10 p-1 rounded-2xl w-full justify-between">
+                                <button 
+                                    onClick={() => ajustarCantidad(p.id, -1)}
+                                    className="w-8 h-8 flex items-center justify-center bg-purple-600 text-white rounded-xl font-black transition-all active:scale-75 disabled:opacity-30"
+                                    disabled={!itemEnCarrito}
+                                >-</button>
+                                <span className="font-black text-sm">{itemEnCarrito?.cantidad || 0}</span>
+                                <button 
+                                    onClick={() => agregarAlCarrito(p)}
+                                    className="w-8 h-8 flex items-center justify-center bg-purple-600 text-white rounded-xl font-black transition-all active:scale-75"
+                                >+</button>
+                            </div>
+                        </div>
+                    )
+                })}
             </div>
 
             {/* CARRITO FLOTANTE PREMIUM */}

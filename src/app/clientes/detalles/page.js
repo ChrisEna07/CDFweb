@@ -146,6 +146,19 @@ function DetallesClienteContent() {
     }
   }
 
+  // Función para eliminar un registro
+  const eliminarRegistro = async (deuda) => {
+    try {
+      const { error } = await supabase.from('fiados').delete().eq('id', deuda.id)
+      if (error) throw error
+      toast.success("✅ Registro eliminado correctamente")
+      registrarLog("ELIMINACION", `Eliminación de fiado para ${cliente.apodo}. Monto: $${deuda.monto_total}`)
+      fetchDatos()
+    } catch (err) {
+      toast.error("Error al eliminar: " + err.message)
+    }
+  }
+
   // Función que se ejecuta tras poner el PIN correcto para pagos completos
   const confirmarAccion = async () => {
     if (accionPendiente?.tipo === 'PAGAR_UNO') {
@@ -195,6 +208,8 @@ function DetallesClienteContent() {
       setNuevoMonto(accionPendiente.data.monto_total)
       setNuevasNotas(accionPendiente.data.notas || '')
       setShowEditModal(true)
+    } else if (accionPendiente?.tipo === 'ELIMINAR') {
+      eliminarRegistro(accionPendiente.data)
     }
     fetchDatos()
     setAccionPendiente(null)
@@ -336,6 +351,75 @@ function DetallesClienteContent() {
                   className="flex-1 bg-gradient-to-r from-green-600 to-green-500 text-white py-3 rounded-xl font-black text-sm shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
                 >
                   {abonando ? 'REGISTRANDO...' : 'REGISTRAR ABONO'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EDICIÓN / CORRECCIÓN */}
+      {showEditModal && editDeuda && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fadeIn">
+          <div className={`w-full max-w-md rounded-[2rem] p-6 shadow-2xl transform transition-all duration-300 animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-slate-700' : 'bg-white'}`}>
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-orange-500/20">
+              <h3 className="text-xl font-black uppercase flex items-center gap-2">
+                ✏️ Corregir Registro
+              </h3>
+              <button 
+                onClick={() => setShowEditModal(false)}
+                className="bg-black/10 hover:bg-black/20 w-8 h-8 rounded-full font-bold transition-all duration-300"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-[10px] font-black uppercase opacity-60">Producto</p>
+                <p className="font-black text-lg">{editDeuda.productos?.nombre}</p>
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-black uppercase mb-2 opacity-60 flex items-center gap-2">
+                  <span>💰</span> Nuevo Monto Total
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl opacity-50">$</span>
+                  <input 
+                    type="number" 
+                    value={nuevoMonto}
+                    onChange={(e) => setNuevoMonto(e.target.value)}
+                    className={`w-full p-4 pl-12 rounded-2xl border-2 font-black transition-all duration-300 focus:ring-2 focus:ring-orange-500/50 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-100 text-black'}`}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-black uppercase mb-2 opacity-60 flex items-center gap-2">
+                  <span>📝</span> Notas del registro
+                </label>
+                <textarea 
+                  value={nuevasNotas}
+                  onChange={(e) => setNuevasNotas(e.target.value)}
+                  rows="3"
+                  className={`w-full p-3 rounded-xl border-2 text-sm font-medium transition-all focus:ring-2 focus:ring-orange-500/50 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-100 text-black'}`}
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 py-3 rounded-xl font-black text-sm border-2 opacity-60 hover:opacity-100 transition"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={guardarEdicion}
+                  disabled={editando || !nuevoMonto}
+                  className="flex-1 bg-gradient-to-r from-orange-600 to-orange-500 text-white py-3 rounded-xl font-black text-sm shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50"
+                >
+                  {editando ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
                 </button>
               </div>
             </div>
@@ -508,8 +592,19 @@ function DetallesClienteContent() {
                       setGuardOpen(true);
                     }}
                     className="bg-gray-200 text-gray-700 dark:bg-slate-800 dark:text-gray-300 px-3 py-2 rounded-xl font-black text-[10px] shadow transition-all duration-300 hover:scale-105 active:scale-95"
+                    title="Editar"
                   >
                     ✏️
+                  </button>
+                  <button 
+                    onClick={() => { 
+                      setAccionPendiente({ tipo: 'ELIMINAR', data: d });
+                      setGuardOpen(true);
+                    }}
+                    className="bg-red-100 text-red-600 dark:bg-red-950/30 dark:text-red-400 px-3 py-2 rounded-xl font-black text-[10px] shadow transition-all duration-300 hover:scale-105 active:scale-95"
+                    title="Eliminar"
+                  >
+                    🗑️
                   </button>
                 </div>
               </div>

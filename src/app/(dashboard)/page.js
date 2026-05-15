@@ -197,19 +197,36 @@ export default function Dashboard() {
       .channel('logs_updates')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs' }, payload => {
           if (payload.new.accion === 'AUTO_FIADO') {
-            toast.info(`🔔 NUEVO FIADO: ${payload.new.detalle}`, {
-              duration: 10000,
-              icon: '🥟',
-              style: { background: '#9333ea', color: '#fff' }
+            toast.success(`🔔 PEDIDO RECIBIDO`, {
+              description: payload.new.detalle,
+              duration: 15000,
+              icon: '🚀',
+              style: { 
+                background: '#581c87', 
+                color: '#fff', 
+                border: '2px solid #a855f7',
+                borderRadius: '1.5rem',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }
             })
             fetchDatos() // Recargar para ver el nuevo fiado
           }
       })
       .subscribe()
 
+    // ✅ SUSCRIPCIÓN PARA ACTUALIZACIÓN DE TOTALES EN TIEMPO REAL
+    const fiadosSub = supabase
+      .channel('fiados_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fiados' }, () => {
+        fetchDatos()
+      })
+      .subscribe()
+
     return () => {
       window.removeEventListener('online', handleOnline)
       supabase.removeChannel(logsSubscription)
+      supabase.removeChannel(fiadosSub)
     }
   }, [])
 
