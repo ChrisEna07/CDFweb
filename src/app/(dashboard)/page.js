@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { offlineQueue } from '@/lib/offline'
 import Navbar from '@/components/Navbar'
 import Sidebar from '@/components/Sidebar'
+import { QRCodeCanvas } from 'qrcode.react'
 export default function Dashboard() {
   const { darkMode, toggleTheme } = useTheme()
   const [clientes, setClientes] = useState([])
@@ -62,13 +63,26 @@ export default function Dashboard() {
   const [cantTortas, setCantTortas] = useState('')
   const [ventasEfectivo, setVentasEfectivo] = useState('')
   const [productosPrecios, setProductosPrecios] = useState({})
-  const [nombreAtendente, setNombreAtendente] = useState('')
   const [atendentes, setAtendentes] = useState([
     { nombre: 'MARIA', pin: '1407' },
     { nombre: 'CHRISTIAN', pin: '3008' }
   ])
   const [atendenteLogueado, setAtendenteLogueado] = useState(null)
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [showAtendentesModal, setShowAtendentesModal] = useState(false)
+  
   const ADMIN_PIN = '1407'
+
+  // ✅ PERSISTENCIA DE ATENDENTE Y LISTA
+  useEffect(() => {
+    const savedAtendentes = localStorage.getItem('atendentes_lista')
+    if (savedAtendentes) setAtendentes(JSON.parse(savedAtendentes))
+
+    const savedLogueado = localStorage.getItem('atendente_logueado')
+    if (savedLogueado) setAtendenteLogueado(JSON.parse(savedLogueado))
+  }, [])
+
+  const autoservicioUrl = typeof window !== 'undefined' ? `${window.location.origin}/autoservicio` : 'https://marivama.app/autoservicio'
 
   // ✅ ESTADOS PARA GASTOS DIARIOS (NUEVO)
   const [gastos, setGastos] = useState({
@@ -487,9 +501,9 @@ export default function Dashboard() {
       await supabase.from('jornadas').insert([{ 
         fecha: getHoyLocal(), 
         abierto,
-        atendido_por: nombreAtendente 
+        atendido_por: atendenteLogueado?.nombre || 'SISTEMA'
       }])
-      registrarLog(nombreAtendente, "APERTURA", `Inicia jornada el día ${getHoyLocal()}`)
+      registrarLog(atendenteLogueado?.nombre || 'SISTEMA', "APERTURA", `Inicia jornada el día ${getHoyLocal()}`)
       setShowAperturaModal(false)
       if (abierto) toast.success(`¡Bienvenido ${nombreAtendente}!`)
       else toast.info("Entendido, hoy se descansa")
@@ -562,6 +576,7 @@ export default function Dashboard() {
       }])
       
       setShowCierreModal(false)
+      registrarLog(atendenteLogueado?.nombre || 'SISTEMA', "CIERRE", `Cierre de jornada guardado. Ganancia neta: $${gananciaReal}`)
       toast.success("Cierre de día guardado con éxito")
       setGastos({verduras:0,frutas:0,carne:0,servilletas:0,cafe:0,mezcladores:0,vasos:0,aluminio:0,harina:0,chicle:0,otros:0})
     } catch (e) { toast.error("Error al guardar cierre") }
@@ -654,7 +669,11 @@ export default function Dashboard() {
   }
   const ejecutarReiniciar = async () => {
     const { error } = await supabase.from('fiados').update({ estado: 'archivado' }).eq('estado', 'pagado')
-    if (!error) { toast.success("Caja reiniciada"); fetchDatos(); }
+    if (!error) { 
+      toast.success("Caja reiniciada"); 
+      registrarLog(atendenteLogueado?.nombre || 'SISTEMA', "REINICIAR_CAJA", "Se archivaron los registros pagados")
+      fetchDatos(); 
+    }
   }
   const manejarPDF = async (cliente) => {
     const fiadosCliente = fiados.filter(f => f.cliente_id === cliente.id && f.estado === 'pendiente');
@@ -717,6 +736,20 @@ export default function Dashboard() {
               color="blue"
               onClick={() => setShowStats(true)}
             />
+            <StatCard 
+              icon="📱" label="QR Menú" 
+              value="Autoservicio" 
+              detail="Mostrar a cliente"
+              color="purple"
+              onClick={() => setShowQRModal(true)}
+            />
+            <StatCard 
+              icon="👤" label="Atendente" 
+              value={atendenteLogueado?.nombre || 'Sin elegir'} 
+              detail="Cambiar / Login"
+              color="emerald"
+              onClick={() => setShowAtendentesModal(true)}
+            />
           </div>
           <div className="mt-4 text-center">
             <button onClick={() => { setAccionPendiente({tipo:'reiniciar'}); setGuardOpen(true); }} className="text-[9px] font-black uppercase opacity-50 hover:opacity-100 underline transition-opacity">Reiniciar Caja (Archivar Pagados)</button>
@@ -776,6 +809,27 @@ export default function Dashboard() {
             <div className="text-center">
               <p className="text-[9px] font-black uppercase opacity-50">✅ Deudas Pagadas</p>
               <p className="text-2xl font-black text-orange-600">{reporteDeudasPagadas}</p>
+            </div>
+          </div>
+          
+          {/* ✅ LISTADO DE PAGOS EN EL REPORTE */}
+          <div className="mt-6 border-t-2 border-orange-500/10 pt-4">
+            <p className="text-[10px] uppercase font-black opacity-40 mb-3 tracking-widest text-center">Detalle de Recaudos</p>
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+              {fiados.filter(f => {
+                const dLocal = new Date(f.creado_el).toLocaleDateString('sv-SE')
+                if (reportePeriodo === 'dia') return dLocal === reporteFecha && f.estado === 'pagado'
+                if (reportePeriodo === 'mes') return dLocal.startsWith(reporteMes) && f.estado === 'pagado'
+                return f.estado === 'pagado'
+              }).sort((a,b) => new Date(b.creado_el) - new Date(a.creado_el)).map(pago => (
+                <div key={pago.id} className="flex justify-between items-center text-[10px] p-2 bg-black/5 dark:bg-white/5 rounded-xl">
+                  <div>
+                    <p className="font-black uppercase">{clientes.find(c => c.id === pago.cliente_id)?.apodo || 'Cliente'}</p>
+                    <p className="opacity-50">{new Date(pago.creado_el).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                  </div>
+                  <p className="font-black text-green-600 text-sm">${Number(pago.monto_total).toLocaleString()}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1250,6 +1304,85 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* 📱 MODAL QR AUTOSERVICIO (NUEVO) */}
+      {showQRModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 animate-fadeIn">
+          <div className={`w-full max-w-sm rounded-[3rem] p-10 text-center shadow-2xl animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-purple-500/30' : 'bg-white'}`}>
+            <h2 className="text-2xl font-black uppercase italic mb-2 text-purple-600">📱 QR Autoservicio</h2>
+            <p className="text-[10px] font-bold opacity-60 uppercase mb-8">Escanea para pedir desde tu celular</p>
+            
+            <div className="bg-white p-6 rounded-[2.5rem] shadow-inner mb-8 flex justify-center border-4 border-purple-500/20">
+              <QRCodeCanvas value={autoservicioUrl} size={200} level="H" />
+            </div>
+
+            <p className="text-[11px] font-black text-purple-600 truncate mb-8 opacity-50">{autoservicioUrl}</p>
+
+            <button 
+              onClick={() => setShowQRModal(false)}
+              className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black uppercase shadow-lg active:scale-95 transition-all"
+            >Cerrar QR</button>
+          </div>
+        </div>
+      )}
+
+      {/* 👤 MODAL QUIÉN ATIENDE (NUEVO/REFACTOR) */}
+      {showAtendentesModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fadeIn">
+          <div className={`w-full max-w-sm rounded-[3rem] p-8 text-center shadow-2xl animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-emerald-500/30' : 'bg-white'}`}>
+            <span className="text-6xl mb-4 block animate-pulse">👤</span>
+            <h2 className="text-2xl font-black uppercase italic mb-2">Cambio de Turno</h2>
+            <p className="text-xs font-bold opacity-60 uppercase mb-6 tracking-widest">Personal Autorizado</p>
+            
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {atendentes.map(a => (
+                <button 
+                  key={a.nombre}
+                  onClick={() => {
+                    const pin = prompt(`Ingresa PIN de ${a.nombre}:`)
+                    if (pin === a.pin) {
+                      setAtendenteLogueado(a)
+                      localStorage.setItem('atendente_logueado', JSON.stringify(a))
+                      toast.success(`Bienvenido ${a.nombre}`)
+                      setShowAtendentesModal(false)
+                    } else {
+                      toast.error("PIN Incorrecto")
+                    }
+                  }}
+                  className={`py-3 rounded-xl font-black uppercase text-xs transition-all border-2 ${atendenteLogueado?.nombre === a.nombre ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-transparent border-gray-200 opacity-60 dark:border-slate-700'}`}
+                >
+                  {a.nombre}
+                </button>
+              ))}
+              <button 
+                onClick={() => {
+                   const pin = prompt("Ingresa clave Admin (Maria) para agregar personal:")
+                   if (pin === '1407') {
+                     const nuevo = prompt("Nombre del nuevo personal:").toUpperCase()
+                     const nuevoPin = prompt(`Asigna un PIN para ${nuevo}:`)
+                     if (nuevo && nuevoPin) {
+                       const nuevaLista = [...atendentes, { nombre: nuevo, pin: nuevoPin }]
+                       setAtendentes(nuevaLista)
+                       localStorage.setItem('atendentes_lista', JSON.stringify(nuevaLista))
+                       toast.success(`${nuevo} agregado con éxito`)
+                     }
+                   } else {
+                     toast.error("Acceso denegado")
+                   }
+                }}
+                className="py-3 rounded-xl font-black uppercase text-[10px] bg-black/5 border-2 border-dashed border-gray-300 opacity-50 dark:border-slate-700 dark:text-white"
+              >
+                + AGREGAR
+              </button>
+            </div>
+
+            <button 
+              onClick={() => setShowAtendentesModal(false)}
+              className="w-full py-4 bg-gray-200 dark:bg-slate-800 text-gray-500 dark:text-gray-400 rounded-2xl font-black uppercase active:scale-95 transition-all"
+            >Regresar</button>
+          </div>
+        </div>
+      )}
+
       {/* 🌅 MODAL DE APERTURA (4 AM) */}
       {showAperturaModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fadeIn">
@@ -1265,33 +1398,18 @@ export default function Dashboard() {
                   onClick={() => {
                     const pin = prompt(`Ingresa PIN de ${a.nombre}:`)
                     if (pin === a.pin) {
-                      setNombreAtendente(a.nombre)
                       setAtendenteLogueado(a)
+                      localStorage.setItem('atendente_logueado', JSON.stringify(a))
                       toast.success(`Bienvenido ${a.nombre}`)
                     } else {
                       toast.error("PIN Incorrecto")
                     }
                   }}
-                  className={`py-3 rounded-xl font-black uppercase text-xs transition-all border-2 ${nombreAtendente === a.nombre ? 'bg-orange-600 border-orange-600 text-white shadow-lg' : 'bg-transparent border-gray-200 opacity-60'}`}
+                  className={`py-3 rounded-xl font-black uppercase text-xs transition-all border-2 ${atendenteLogueado?.nombre === a.nombre ? 'bg-orange-600 border-orange-600 text-white shadow-lg' : 'bg-transparent border-gray-200 opacity-60 dark:border-slate-700'}`}
                 >
                   {a.nombre}
                 </button>
               ))}
-              <button 
-                onClick={() => {
-                   const pin = prompt("Ingresa clave Admin (Maria) para agregar personal:")
-                   if (pin === '1407') {
-                     const nuevo = prompt("Nombre del nuevo personal:").toUpperCase()
-                     const nuevoPin = prompt(`Asigna un PIN para ${nuevo}:`)
-                     if (nuevo && nuevoPin) setAtendentes([...atendentes, { nombre: nuevo, pin: nuevoPin }])
-                   } else {
-                     toast.error("Acceso denegado")
-                   }
-                }}
-                className="py-3 rounded-xl font-black uppercase text-[10px] bg-black/5 border-2 border-dashed border-gray-300 opacity-50"
-              >
-                + AGREGAR
-              </button>
             </div>
 
             <p className="text-[10px] font-bold opacity-40 uppercase mb-8">¿Abres el puesto hoy?</p>

@@ -14,6 +14,24 @@ export default function NuevoFiado() {
   const [clientes, setClientes] = useState([])
   const [productosMenu, setProductosMenu] = useState([])
   const [showMenu, setShowMenu] = useState(false)
+  const [atendenteLogueado, setAtendenteLogueado] = useState(null)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('atendente_logueado')
+    if (saved) setAtendenteLogueado(JSON.parse(saved))
+  }, [])
+
+  async function registrarLog(accion, detalle) {
+    const usuario = atendenteLogueado?.nombre || 'SISTEMA'
+    try {
+      await supabase.from('logs').insert([{ 
+        usuario: usuario.toUpperCase(), 
+        accion, 
+        detalle, 
+        fecha: new Date().toISOString() 
+      }])
+    } catch (e) { console.error("Error log:", e) }
+  }
   
   const [clienteId, setClienteId] = useState('')
   const [clienteInfo, setClienteInfo] = useState(null)
@@ -163,6 +181,9 @@ export default function NuevoFiado() {
       const { error } = await supabase.from('fiados').insert(registros)
       if (error) throw error
       
+      const cliApodo = clientes.find(c => c.id === clienteId)?.apodo || 'Cliente'
+      registrarLog("NUEVO_FIADO", `Registro de fiado para ${cliApodo}. Total: $${totalConsumo}`)
+
       toast.success("¡Venta registrada con fecha correcta! 🥟")
       router.push('/')
     } catch (err) {

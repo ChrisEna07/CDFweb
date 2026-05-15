@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/context/ThemeContext'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import Navbar from '@/components/Navbar'
+import Sidebar from '@/components/Sidebar'
 
 export default function GaleriaRecuerdos() {
   const { darkMode } = useTheme()
@@ -13,6 +15,7 @@ export default function GaleriaRecuerdos() {
   const [imagenExpandida, setImagenExpandida] = useState(null)
   const [editandoId, setEditandoId] = useState(null)
   const [nuevoTitulo, setNuevoTitulo] = useState("")
+  const [showMenu, setShowMenu] = useState(false)
 
   useEffect(() => {
     fetchRecuerdos()
@@ -270,22 +273,12 @@ export default function GaleriaRecuerdos() {
         <input type="file" accept="image/*" className="hidden" onChange={subirFoto} disabled={subiendo} />
       </label>
 
-      {/* NAVEGACIÓN INFERIOR MEJORADA */}
-      <nav className={`${darkMode ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-orange-200'} backdrop-blur-xl fixed bottom-6 left-6 right-6 border-4 rounded-[3rem] p-4 flex justify-around items-center z-50 shadow-2xl`}>
-        <Link href="/" className="flex flex-col items-center group">
-          <span className="text-3xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1">🏠</span>
-          <span className={`text-[10px] font-black uppercase mt-1 opacity-70 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-white' : 'text-black'}`}>Inicio</span>
-        </Link>
-        
-        <Link href="/fiados/nuevo" className="bg-gradient-to-r from-orange-600 to-orange-500 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-xl -mt-16 border-[6px] border-orange-50 dark:border-slate-800 transition-all duration-300 hover:shadow-2xl hover:scale-110 active:scale-95 group">
-          <span className="text-4xl font-bold transition-transform duration-300 group-hover:rotate-90">+</span>
-        </Link>
-
-        <Link href="/recuerdos" className="flex flex-col items-center group">
-          <span className="text-3xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 text-orange-600">📸</span>
-          <span className="text-[10px] font-black uppercase mt-1 text-orange-600">Álbum</span>
-        </Link>
-      </nav>
+      <Navbar onMenuClick={() => setShowMenu(true)} />
+      <Sidebar 
+        isOpen={showMenu} 
+        onClose={() => setShowMenu(false)} 
+        onAction={() => toast.info("Acción disponible en Inicio")}
+      />
 
       {/* ESTILOS GLOBALES */}
       <style jsx global>{`

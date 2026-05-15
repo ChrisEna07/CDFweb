@@ -38,8 +38,25 @@ function DetallesClienteContent() {
   const [nuevasNotas, setNuevasNotas] = useState('')
   const [editando, setEditando] = useState(false)
   
-  // Estado para el menú global
   const [showMenu, setShowMenu] = useState(false)
+  const [atendenteLogueado, setAtendenteLogueado] = useState(null)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('atendente_logueado')
+    if (saved) setAtendenteLogueado(JSON.parse(saved))
+  }, [])
+
+  async function registrarLog(accion, detalle) {
+    const usuario = atendenteLogueado?.nombre || 'SISTEMA'
+    try {
+      await supabase.from('logs').insert([{ 
+        usuario: usuario.toUpperCase(), 
+        accion, 
+        detalle, 
+        fecha: new Date().toISOString() 
+      }])
+    } catch (e) { console.error("Error log:", e) }
+  }
 
   useEffect(() => {
     if (clienteId) fetchDatos()
@@ -94,6 +111,7 @@ function DetallesClienteContent() {
       // Por ahora actualizamos la nota de la deuda
       
       toast.success(`✅ Abono de $${abonoMonto.toLocaleString()} registrado correctamente`)
+      registrarLog("ABONO", `Abono de $${abonoMonto} para ${cliente.apodo}. Deuda: ${deudaSeleccionada.productos?.nombre}`)
       setShowAbonoModal(false)
       setMontoAbono('')
       setNotaAbono('')
@@ -121,6 +139,7 @@ function DetallesClienteContent() {
       
       if (error) throw error
       toast.success("✅ Registro corregido con éxito")
+      registrarLog("CORRECCION", `Corrección de deuda para ${cliente.apodo}. Nuevo monto: $${nuevoMonto}`)
       setShowEditModal(false)
       fetchDatos()
     } catch (err) {
@@ -142,6 +161,7 @@ function DetallesClienteContent() {
         toast.error("Error al pagar la deuda")
       } else {
         toast.success("✅ Deuda pagada correctamente")
+        registrarLog("PAGO", `Pago de fiado individual para ${cliente.apodo}`)
       }
     } else if (accionPendiente?.tipo === 'PAGAR_TODO') {
       const { error } = await supabase
@@ -154,6 +174,7 @@ function DetallesClienteContent() {
         toast.error("Error al pagar todas las deudas")
       } else {
         toast.success("✅ Todas las deudas han sido pagadas")
+        registrarLog("PAGO_TOTAL", `Pago de todas las deudas de ${cliente.apodo}`)
       }
     }
     fetchDatos()

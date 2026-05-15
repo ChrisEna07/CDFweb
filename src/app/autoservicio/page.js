@@ -6,6 +6,7 @@ import { Toaster, toast } from 'sonner'
 import Navbar from '@/components/Navbar'
 import Sidebar from '@/components/Sidebar'
 import { useTheme } from '@/context/ThemeContext'
+import { QRCodeCanvas } from 'qrcode.react'
 
 export default function Autoservicio() {
     const [productos, setProductos] = useState([])
@@ -165,6 +166,14 @@ export default function Autoservicio() {
                 </button>
             </div>
             
+            {/* ✅ QR PARA COMPARTIR (NUEVO) */}
+            <div className="mt-12 flex flex-col items-center opacity-30 hover:opacity-100 transition-opacity pb-20">
+                <p className="text-[10px] font-black uppercase mb-3">Compartir este menú</p>
+                <div className="bg-white p-3 rounded-2xl">
+                    <QRCodeCanvas value={typeof window !== 'undefined' ? window.location.href : ''} size={80} />
+                </div>
+            </div>
+
             <style jsx>{`
                 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
