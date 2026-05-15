@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 export default function AdminGuard({ isOpen, onClose, onConfirm, darkMode }) {
   const [pin, setPin] = useState('')
-  const PIN_CORRECTO = "1407"
+  const PINS_VALIDOS = ["1407", "3008"]
 
   // Efecto que vigila el PIN mientras escribes
   useEffect(() => {
@@ -14,7 +14,7 @@ export default function AdminGuard({ isOpen, onClose, onConfirm, darkMode }) {
   }, [pin])
 
   const verificar = (valorPin) => {
-    if (valorPin === PIN_CORRECTO) {
+    if (PINS_VALIDOS.includes(valorPin)) {
       onConfirm()
       setPin('')
       onClose()

@@ -7,6 +7,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import AdminGuard from '@/components/AdminGuard'
 import { toast } from 'sonner'
+import { offlineQueue } from '@/lib/offline'
+import Navbar from '@/components/Navbar'
+import Sidebar from '@/components/Sidebar'
 export default function Dashboard() {
   const { darkMode, toggleTheme } = useTheme()
   const [clientes, setClientes] = useState([])
@@ -29,6 +32,49 @@ export default function Dashboard() {
   const [showStats, setShowStats] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [accionPendiente, setAccionPendiente] = useState(null)
+
+  // ✅ ESTADOS PARA EL MÓDULO PIPETA (NUEVO)
+  const [pipetas, setPipetas] = useState([])
+  const [showPipetaModal, setShowPipetaModal] = useState(false)
+  const [dataPipeta, setDataPipeta] = useState(null) // Para abonos/liquidación
+  const [costoPipeta, setCostoPipeta] = useState('')
+  const [pagoTipoPipeta, setPagoTipoPipeta] = useState('pagado') // 'pagado' o 'fiado'
+  const [montoAbonoPipeta, setMontoAbonoPipeta] = useState('')
+  const [notaPipeta, setNotaPipeta] = useState('')
+
+  // ✅ ESTADOS PARA MÉTRICAS DEL DÍA
+  const [totalFiadosHoy, setTotalFiadosHoy] = useState(0)
+  const [totalIngresosHoy, setTotalIngresosHoy] = useState(0)
+
+  // ✅ ESTADO PARA EDICIÓN DE PARQUEADERO Y PIPETAS
+  const [modoEdicionParqueadero, setModoEdicionParqueadero] = useState(false)
+  const [editFechaInicio, setEditFechaInicio] = useState('')
+  const [editPagadoInicial, setEditPagadoInicial] = useState('')
+  const [itemAbonoEdit, setItemAbonoEdit] = useState(null) // Para editar historial específico
+
+  // ✅ ESTADOS PARA CIERRE Y APERTURA (NUEVO)
+  const [showAperturaModal, setShowAperturaModal] = useState(false)
+  const [showCierreModal, setShowCierreModal] = useState(false)
+  const [kgMasa, setKgMasa] = useState('')
+  const [hizoJugo, setHizoJugo] = useState(false)
+  const [cantJugo, setCantJugo] = useState('')
+  const [hizoTortas, setHizoTortas] = useState(false)
+  const [cantTortas, setCantTortas] = useState('')
+  const [ventasEfectivo, setVentasEfectivo] = useState('')
+  const [productosPrecios, setProductosPrecios] = useState({})
+  const [nombreAtendente, setNombreAtendente] = useState('')
+  const [atendentes, setAtendentes] = useState([
+    { nombre: 'MARIA', pin: '1407' },
+    { nombre: 'CHRISTIAN', pin: '3008' }
+  ])
+  const [atendenteLogueado, setAtendenteLogueado] = useState(null)
+  const ADMIN_PIN = '1407'
+
+  // ✅ ESTADOS PARA GASTOS DIARIOS (NUEVO)
+  const [gastos, setGastos] = useState({
+    verduras: 0, frutas: 0, carne: 0, servilletas: 0, cafe: 0,
+    mezcladores: 0, vasos: 0, aluminio: 0, harina: 0, chicle: 0, otros: 0
+  })
   // ✅ CORRECCIÓN DE FECHAS LOCALES
   const getHoyLocal = () => {
     const d = new Date();
@@ -111,14 +157,54 @@ export default function Dashboard() {
     fetchCompras()
     fetchPremios()
     fetchParqueadero() // ✅ NUEVA FUNCIÓN CONTROL PARQUEADERO
+    fetchPipetas() // ✅ NUEVA FUNCIÓN CONTROL PIPETAS
+    fetchPreciosProductos() // ✅ PARA CIERRE DIARIO
+    verificarJornada() // ✅ NUEVA FUNCIÓN TIEMPO REAL
     
     setFrase(frasesMotivacionales[Math.floor(Math.random() * frasesMotivacionales.length)])
     
-    const hora = new Date().getHours()
-    if (hora >= 5 && hora < 12) setSaludo('¡Buenos días, María! ☕')
-    else if (hora >= 12 && hora < 18) setSaludo('¡Buenas tardes, María! ☀️')
-    else setSaludo('¡Buenas noches, María! 🌙')
+    const handleOnline = () => {
+      toast.promise(offlineQueue.sync(supabase), {
+        loading: 'Sincronizando datos offline...',
+        success: '¡Datos sincronizados!',
+        error: 'Error al sincronizar'
+      })
+    }
+    window.addEventListener('online', handleOnline)
+
+    // ✅ SUSCRIPCIÓN EN TIEMPO REAL PARA NOTIFICACIONES DE QR
+    const logsSubscription = supabase
+      .channel('logs_updates')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs' }, payload => {
+          if (payload.new.accion === 'AUTO_FIADO') {
+            toast.info(`🔔 NUEVO FIADO: ${payload.new.detalle}`, {
+              duration: 10000,
+              icon: '🥟',
+              style: { background: '#9333ea', color: '#fff' }
+            })
+            fetchDatos() // Recargar para ver el nuevo fiado
+          }
+      })
+      .subscribe()
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      supabase.removeChannel(logsSubscription)
+    }
   }, [])
+
+  // ✅ COMPONENTE LOCAL PARA TARJETAS DE ESTADÍSTICA
+  const StatCard = ({ icon, label, value, detail, color, onClick }) => (
+    <div 
+      onClick={onClick}
+      className={`${cardBg} p-5 rounded-[2.5rem] border-2 border-${color}-500/20 flex flex-col items-center justify-center text-center transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95 cursor-pointer`}
+    >
+      <span className="text-3xl mb-2">{icon}</span>
+      <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">{label}</p>
+      <p className={`text-2xl font-black text-${color}-600 leading-none`}>{value}</p>
+      {detail && <p className="text-[9px] font-bold opacity-40 uppercase mt-2 italic">{detail}</p>}
+    </div>
+  )
   useEffect(() => {
     if (fiados.length > 0) {
       calcularReporte()
@@ -127,14 +213,31 @@ export default function Dashboard() {
   // --- 🔒 CARGA DE DATOS ---
   async function fetchDatos() {
     try {
+      const hoy = getHoyLocal()
       const { data: listaClientes } = await supabase.from('clientes').select('*').order('apodo', { ascending: true })
       setClientes(listaClientes || [])
+      
       const { data: todosLosFiados } = await supabase.from('fiados').select('*')
       setFiados(todosLosFiados || [])
+      
       const sumaPendiente = todosLosFiados?.filter(f => f.estado === 'pendiente').reduce((acc, current) => acc + Number(current.monto_total), 0) || 0
       const sumaIngresos = todosLosFiados?.filter(f => f.estado === 'pagado').reduce((acc, current) => acc + Number(current.monto_total), 0) || 0
+      
+      // ✅ CÁLCULO DE MÉTRICAS DEL DÍA
+      const sumaFiadosHoy = todosLosFiados?.filter(f => {
+        const dLocal = new Date(f.creado_el).toLocaleDateString('sv-SE')
+        return dLocal === hoy && f.estado === 'pendiente'
+      }).reduce((acc, curr) => acc + Number(curr.monto_total), 0) || 0
+
+      const sumaIngresosHoy = todosLosFiados?.filter(f => {
+        const dLocal = new Date(f.creado_el).toLocaleDateString('sv-SE')
+        return dLocal === hoy && f.estado === 'pagado'
+      }).reduce((acc, curr) => acc + Number(curr.monto_total), 0) || 0
+
       setTotalPendiente(sumaPendiente)
       setTotalIngresos(sumaIngresos)
+      setTotalFiadosHoy(sumaFiadosHoy)
+      setTotalIngresosHoy(sumaIngresosHoy)
     } catch (e) { console.error(e) } finally { setCargando(false) }
   }
   async function fetchTodos() {
@@ -150,10 +253,46 @@ export default function Dashboard() {
     if (data) setPremios(data)
   }
   // ✅ NUEVAS FUNCIONES: CONTROL PARQUEADERO
+  async function fetchPipetas() {
+    try {
+      const { data, error } = await supabase.from('pipetas').select('*').order('creado_el', { ascending: false })
+      if (data) setPipetas(data)
+    } catch (e) { console.error(e) }
+  }
+  async function fetchPreciosProductos() {
+    const { data } = await supabase.from('productos').select('nombre, precio')
+    if (data) {
+      const map = {}
+      data.forEach(p => map[p.nombre.toUpperCase()] = p.precio)
+      setProductosPrecios(map)
+    }
+  }
+  async function verificarJornada() {
+    const hoy = getHoyLocal()
+    const hora = new Date().getHours()
+    
+    // Verificar si ya respondió apertura hoy
+    const { data: jornada } = await supabase.from('jornadas').select('*').eq('fecha', hoy).maybeSingle()
+    if (!jornada && hora >= 4) {
+      setShowAperturaModal(true)
+    }
+
+    // Verificar si ya respondió cierre hoy
+    if (jornada?.abierto) {
+      const { data: cierre } = await supabase.from('cierres_diarios').select('*').eq('fecha', hoy).maybeSingle()
+      if (!cierre && hora >= 12) {
+        setShowCierreModal(true)
+      }
+    }
+  }
   async function fetchParqueadero() {
     try {
       const { data, error } = await supabase.from('parqueadero').select('*').order('creado_el', { ascending: false }).limit(1).maybeSingle()
-      if (data) setDataParqueadero(data)
+      if (data) {
+        setDataParqueadero(data)
+        setEditFechaInicio(data.inicio.split('T')[0])
+        setEditPagadoInicial(data.pagado || 0)
+      }
       
       const { data: hist } = await supabase
         .from('parqueadero_historial')
@@ -191,12 +330,35 @@ export default function Dashboard() {
         monto: Number(montoAbono),
         nota: notaParqueadero || 'Abono parcial'
       }])
+
+      registrarLog(nombreAtendente || "SISTEMA", "ABONO_PARQUEADERO", `Abono de $${montoAbono} para ${dataParqueadero.id}`)
       
       toast.success("Abono registrado con éxito")
       setMontoAbono('')
       setNotaParqueadero('')
       fetchParqueadero()
-    } catch (e) { toast.error("Error al registrar abono") }
+    } catch (e) { 
+      toast.info("Guardado en modo offline")
+      offlineQueue.add('parqueadero_historial', 'INSERT', { 
+        parqueadero_id: dataParqueadero.id, tipo: 'abono', monto: Number(montoAbono), nota: notaParqueadero, fecha: new Date().toISOString() 
+      })
+    }
+  }
+  async function editarAbonoParqueadero(id, nuevoMonto) {
+    try {
+      const { data: abonoAnterior } = await supabase.from('parqueadero_historial').select('monto').eq('id', id).single()
+      const diff = Number(nuevoMonto) - Number(abonoAnterior.monto)
+      
+      const { error: histErr } = await supabase.from('parqueadero_historial').update({ monto: Number(nuevoMonto) }).eq('id', id)
+      if (histErr) throw histErr
+      
+      const nuevoPagado = (dataParqueadero.pagado || 0) + diff
+      await supabase.from('parqueadero').update({ pagado: nuevoPagado }).eq('id', dataParqueadero.id)
+      
+      toast.success("Abono corregido")
+      setItemAbonoEdit(null)
+      fetchParqueadero()
+    } catch (e) { toast.error("Error al editar abono") }
   }
   async function registrarPagoTotal() {
     try {
@@ -230,6 +392,179 @@ export default function Dashboard() {
       toast.success("Se agregó 1 día de deuda (+5,000)")
       fetchParqueadero()
     } catch (e) { toast.error("Error al ajustar fecha") }
+  }
+  async function editarRegistroParqueadero() {
+    try {
+      const { error } = await supabase.from('parqueadero').update({ 
+        inicio: new Date(editFechaInicio).toISOString(), 
+        pagado: Number(editPagadoInicial) 
+      }).eq('id', dataParqueadero.id)
+      if (error) throw error
+      toast.success("Registro actualizado correctamente")
+      setModoEdicionParqueadero(false)
+      fetchParqueadero()
+    } catch (e) { toast.error("Error al actualizar registro") }
+  }
+
+  // ✅ NUEVAS FUNCIONES: CONTROL PIPETAS
+  async function registrarPipeta() {
+    if (!costoPipeta || isNaN(costoPipeta) || Number(costoPipeta) <= 0) return toast.error("Ingresa un costo válido")
+    try {
+      const { data, error } = await supabase.from('pipetas').insert([{
+        costo: Number(costoPipeta),
+        estado: pagoTipoPipeta,
+        pagado: pagoTipoPipeta === 'pagado' ? Number(costoPipeta) : 0,
+        creado_el: new Date().toISOString()
+      }]).select().single()
+      
+      if (error) throw error
+      
+      if (pagoTipoPipeta === 'pagado') {
+        await supabase.from('pipetas_historial').insert([{
+          pipeta_id: data.id,
+          tipo: 'pago_total',
+          monto: Number(costoPipeta),
+          nota: 'Pago inmediato'
+        }])
+      }
+      
+      toast.success(pagoTipoPipeta === 'pagado' ? "Pipeta pagada registrada" : "Pipeta a fiado registrada")
+      setCostoPipeta('')
+      fetchPipetas()
+    } catch (e) { toast.error("Error al registrar pipeta") }
+  }
+
+  async function registrarAbonoPipeta() {
+    if (!montoAbonoPipeta || isNaN(montoAbonoPipeta) || Number(montoAbonoPipeta) <= 0) return toast.error("Ingresa un monto válido")
+    try {
+      const nuevoPagado = (dataPipeta.pagado || 0) + Number(montoAbonoPipeta)
+      const nuevoEstado = nuevoPagado >= dataPipeta.costo ? 'pagado' : 'fiado'
+      
+      const { error: upError } = await supabase.from('pipetas').update({ 
+        pagado: nuevoPagado, 
+        estado: nuevoEstado 
+      }).eq('id', dataPipeta.id)
+      
+      if (upError) throw upError
+      
+      await supabase.from('pipetas_historial').insert([{
+        pipeta_id: dataPipeta.id,
+        tipo: nuevoEstado === 'pagado' ? 'pago_total' : 'abono',
+        monto: Number(montoAbonoPipeta),
+        nota: notaPipeta || 'Abono parcial'
+      }])
+      
+      toast.success(nuevoEstado === 'pagado' ? "¡Pipeta liquidada!" : "Abono registrado")
+      setMontoAbonoPipeta('')
+      setNotaPipeta('')
+      setDataPipeta(null)
+      fetchPipetas()
+    } catch (e) { toast.error("Error al registrar abono") }
+  }
+  async function editarAbonoPipeta(id, nuevoMonto) {
+    try {
+      const { data: abonoAnterior } = await supabase.from('pipetas_historial').select('monto').eq('id', id).single()
+      const diff = Number(nuevoMonto) - Number(abonoAnterior.monto)
+      
+      const { error: histErr } = await supabase.from('pipetas_historial').update({ monto: Number(nuevoMonto) }).eq('id', id)
+      if (histErr) throw histErr
+      
+      const nuevoPagado = (dataPipeta.pagado || 0) + diff
+      const nuevoEstado = nuevoPagado >= dataPipeta.costo ? 'pagado' : 'fiado'
+      
+      await supabase.from('pipetas').update({ pagado: nuevoPagado, estado: nuevoEstado }).eq('id', dataPipeta.id)
+      
+      toast.success("Abono de pipeta corregido")
+      setItemAbonoEdit(null)
+      fetchPipetas()
+    } catch (e) { toast.error("Error al editar abono") }
+  }
+
+  // ✅ FUNCIONES CIERRE Y APERTURA
+  async function registrarApertura(abierto) {
+    if (abierto && !nombreAtendente) return toast.error("Ingresa tu nombre")
+    try {
+      await supabase.from('jornadas').insert([{ 
+        fecha: getHoyLocal(), 
+        abierto,
+        atendido_por: nombreAtendente 
+      }])
+      registrarLog(nombreAtendente, "APERTURA", `Inicia jornada el día ${getHoyLocal()}`)
+      setShowAperturaModal(false)
+      if (abierto) toast.success(`¡Bienvenido ${nombreAtendente}!`)
+      else toast.info("Entendido, hoy se descansa")
+    } catch (e) { toast.error("Error al registrar jornada") }
+  }
+
+  // ✅ SISTEMA DE LOGS (TRAZABILIDAD)
+  async function registrarLog(usuario, accion, detalle) {
+    const payload = { usuario: usuario.toUpperCase(), accion, detalle, fecha: new Date().toISOString() }
+    try {
+      const { error } = await supabase.from('logs').insert([payload])
+      if (error) throw error
+    } catch (e) { 
+      console.log("Modo Offline: Guardando log localmente")
+      offlineQueue.add('logs', 'INSERT', payload)
+    }
+  }
+
+  // ✅ VALIDACIÓN DE DINERO (PARA COP)
+  const validarMonto = (valor) => {
+    const v = Number(valor)
+    if (v > 0 && v < 100) {
+      toast.warning("⚠️ ¿Ingresaste un monto muy bajo? (Ej: 30 en vez de 30.000)", { duration: 4000 })
+    }
+  }
+  async function registrarCierre() {
+    if (!kgMasa || !ventasEfectivo) return toast.error("Completa los campos principales")
+    try {
+      const precioEmpanada = productosPrecios['EMPANADA'] || 3000
+      const precioJugo = productosPrecios['JUGO'] || 0
+      const precioTorta = productosPrecios['TORTA DE CARNE'] || 0
+      
+      const empanadasCant = Number(kgMasa) * 35
+      const montoMasa = empanadasCant * precioEmpanada
+      const montoJugos = Number(cantJugo) * precioJugo
+      const montoTortas = Number(cantTortas) * precioTorta
+      
+      const produccionEsperada = montoMasa + montoJugos + montoTortas
+      const totalCajaHoy = Number(ventasEfectivo) + totalIngresosHoy // Efectivo + Recaudos
+      const totalGastosHoy = Object.values(gastos).reduce((acc, curr) => acc + Number(curr), 0)
+      const gananciaReal = totalCajaHoy - totalGastosHoy
+
+      await supabase.from('cierres_diarios').insert([{
+        fecha: getHoyLocal(),
+        kg_masa: Number(kgMasa),
+        empanadas_estimadas: empanadasCant,
+        monto_esperado_masa: montoMasa,
+        jugos_cantidad: Number(cantJugo),
+        jugos_monto: montoJugos,
+        tortas_cantidad: Number(cantTortas),
+        tortas_monto: montoTortas,
+        produccion_esperada: produccionEsperada,
+        total_ventas_efectivo: Number(ventasEfectivo),
+        recaudos_fiados: totalIngresosHoy,
+        total_dia: totalCajaHoy, // Dinero real que entró
+        total_gastos: totalGastosHoy,
+        ganancia_neta: gananciaReal,
+        // Gastos detallados
+        gastos_verduras: Number(gastos.verduras),
+        gastos_frutas: Number(gastos.frutas),
+        gastos_carne: Number(gastos.carne),
+        gastos_servilletas: Number(gastos.servilletas),
+        gastos_cafe: Number(gastos.cafe),
+        gastos_mezcladores: Number(gastos.mezcladores),
+        gastos_vasos: Number(gastos.vasos),
+        gastos_aluminio: Number(gastos.aluminio),
+        gastos_harina: Number(gastos.harina),
+        gastos_chicle: Number(gastos.chicle),
+        gastos_otros: Number(gastos.otros)
+      }])
+      
+      setShowCierreModal(false)
+      toast.success("Cierre de día guardado con éxito")
+      setGastos({verduras:0,frutas:0,carne:0,servilletas:0,cafe:0,mezcladores:0,vasos:0,aluminio:0,harina:0,chicle:0,otros:0})
+    } catch (e) { toast.error("Error al guardar cierre") }
   }
   // --- ✨ LÓGICA DE PUNTOS ---
   const calcularPuntos = (clienteId) => {
@@ -367,16 +702,24 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 bg-black/30 p-5 rounded-2xl border border-white/20 backdrop-blur-md">
-            <div className="text-center border-r border-white/20">
-              <p className="text-[10px] uppercase font-black text-orange-200 mb-2 tracking-wider">Total Fiao</p>
-              <p className="text-3xl font-black tracking-tight drop-shadow-lg">${totalPendiente.toLocaleString('es-CO')}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[10px] uppercase font-black text-green-300 mb-2 tracking-wider">Ingresos ✨</p>
-              <p className="text-3xl font-black text-green-100 tracking-tight drop-shadow-lg">${totalIngresos.toLocaleString('es-CO')}</p>
-              <button onClick={() => { setAccionPendiente({tipo:'reiniciar'}); setGuardOpen(true); }} className="mt-2 text-[9px] font-black uppercase opacity-70 hover:opacity-100 underline transition-opacity">Reiniciar Caja</button>
-            </div>
+          <div className="grid grid-cols-2 gap-4">
+            <StatCard 
+              icon="📉" label="Total Fiado" 
+              value={`$${totalPendiente.toLocaleString()}`} 
+              detail={`Hoy: +$${totalFiadosHoy.toLocaleString()}`}
+              color="orange"
+              onClick={() => setShowStats(true)}
+            />
+            <StatCard 
+              icon="🤝" label="Recaudos Hoy" 
+              value={`$${totalIngresosHoy.toLocaleString()}`} 
+              detail={`Resta: $${totalPendiente.toLocaleString()}`}
+              color="blue"
+              onClick={() => setShowStats(true)}
+            />
+          </div>
+          <div className="mt-4 text-center">
+            <button onClick={() => { setAccionPendiente({tipo:'reiniciar'}); setGuardOpen(true); }} className="text-[9px] font-black uppercase opacity-50 hover:opacity-100 underline transition-opacity">Reiniciar Caja (Archivar Pagados)</button>
           </div>
         </div>
       </div>
@@ -454,7 +797,7 @@ export default function Dashboard() {
                 <Link href={`/clientes/detalles?id=${cliente.id}`} className="flex-1 group/link">
                     <h3 className="text-lg font-black uppercase leading-none group-hover/link:text-orange-600 transition-colors">{cliente.apodo}</h3>
                     <div className="flex items-center gap-2 mt-2">
-                        <span className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-2.5 py-0.5 rounded-full text-[10px] font-black shadow-md">
+                        <span className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 px-2.5 py-0.5 rounded-full text-[10px] font-black shadow-md flex items-center gap-2">
                           🏅 {calcularPuntos(cliente.id)} PTS
                           {puedeCanjear(cliente.id) && (
                             <button 
@@ -462,13 +805,33 @@ export default function Dashboard() {
                                 e.preventDefault();
                                 registrarCanje(cliente.id);
                               }}
-                              className="ml-1 bg-purple-600 text-white px-1.5 py-0.5 rounded-full text-[8px] font-black hover:bg-purple-700 transition-colors"
+                              className="bg-purple-600 text-white px-3 py-1 rounded-full text-[9px] font-black hover:bg-purple-700 transition-all hover:scale-110 active:scale-95 shadow-lg border-2 border-white/20 animate-bounce"
                             >
-                              🎁 Canjear
+                              🎁 CANJEAR PREMIO
                             </button>
                           )}
                         </span>
                         <p className="text-[9px] font-bold opacity-50 uppercase truncate">{cliente.nombre || 'Sin nombre'}</p>
+                        {cliente.whitelist && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[8px] font-black uppercase">⭐ Whitelist</span>}
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            supabase.from('clientes').update({ whitelist: !cliente.whitelist }).eq('id', cliente.id).then(() => fetchDatos());
+                          }}
+                          className={`ml-2 px-2 py-0.5 rounded text-[7px] font-black uppercase ${cliente.whitelist ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}
+                        >
+                          {cliente.whitelist ? 'Quitar W.' : 'Hacer W.'}
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            supabase.from('clientes').update({ blacklist: !cliente.blacklist }).eq('id', cliente.id).then(() => fetchDatos());
+                          }}
+                          className={`ml-1 px-2 py-0.5 rounded text-[7px] font-black uppercase ${cliente.blacklist ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}
+                        >
+                          {cliente.blacklist ? 'Quitar B.' : 'Hacer B.'}
+                        </button>
+                        {cliente.blacklist && <span className="ml-1 bg-red-600 text-white px-2 py-0.5 rounded text-[8px] font-black uppercase animate-pulse">🚫 Blacklist</span>}
                     </div>
                 </Link>
                 <button 
@@ -519,18 +882,29 @@ export default function Dashboard() {
                             </div>
                         ))}
                     </div>
-                    {/* ✅ NUEVA SECCIÓN: CONTROL PARQUEADERO (ULTIMOS MOVIMIENTOS) */}
+                    {/* ✅ NUEVA SECCIÓN: RECAUDOS RECIENTES (QUIÉN Y CUÁNTO PAGÓ) */}
                     <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-5 rounded-[2rem] border border-blue-500/20">
-                        <h3 className="text-[11px] font-black uppercase text-blue-600 mb-4 tracking-widest flex items-center gap-2">🅿️ <span>Últimos Movimientos P.</span></h3>
+                        <h3 className="text-[11px] font-black uppercase text-blue-600 mb-4 tracking-widest flex items-center gap-2">🤝 <span>Recaudos Recientes</span></h3>
+                        {fiados.filter(f => f.estado === 'pagado').sort((a,b) => new Date(b.creado_el) - new Date(a.creado_el)).slice(0, 10).map(f => (
+                            <Link key={f.id} href={`/clientes/detalles?id=${f.cliente_id}`} className="flex justify-between items-center text-sm mb-3 font-bold uppercase border-b border-blue-500/10 pb-2 hover:bg-blue-500/5 p-1 rounded-lg transition-all">
+                                <span className="text-blue-700 truncate max-w-[100px]">{clientes.find(c => c.id === f.cliente_id)?.apodo}</span>
+                                <span className="text-green-600 font-black">${Number(f.monto_total).toLocaleString()}</span>
+                                <span className="text-[9px] opacity-40">{new Date(f.creado_el).toLocaleDateString()}</span>
+                            </Link>
+                        ))}
+                    </div>
+                    {/* ✅ ÚLTIMOS MOVIMIENTOS PARQUEADERO */}
+                    <div className="bg-gradient-to-br from-slate-500/10 to-slate-500/5 p-5 rounded-[2rem] border border-slate-500/20">
+                        <h3 className="text-[11px] font-black uppercase text-slate-600 mb-4 tracking-widest flex items-center gap-2">🅿️ <span>Movimientos Parqueadero</span></h3>
                         {historialParqueadero.length === 0 ? (
                           <p className="text-xs opacity-60 text-center py-2">No hay movimientos registrados</p>
                         ) : (
                           historialParqueadero.slice(0, 3).map(h => (
-                            <div key={h.id} className="flex justify-between items-center text-sm mb-3 font-bold uppercase border-b border-blue-500/10 pb-2">
+                            <div key={h.id} className="flex justify-between items-center text-sm mb-3 font-bold uppercase border-b border-slate-500/10 pb-2">
                                 <span className={`text-[9px] ${h.tipo === 'pago_total' ? 'text-green-600' : 'text-blue-700'}`}>
                                   {h.tipo === 'pago_total' ? 'Pago T.' : 'Abono'}
                                 </span>
-                                <span className="text-blue-700">${Number(h.monto).toLocaleString()}</span>
+                                <span className="text-blue-700 font-black">${Number(h.monto).toLocaleString()}</span>
                                 <span className="text-[9px] opacity-60">{new Date(h.fecha).toLocaleDateString()}</span>
                             </div>
                           ))
@@ -540,136 +914,169 @@ export default function Dashboard() {
             </div>
         </div>
       )}
-      {/* 🥟 MODAL DE MENÚ MEJORADO */}
-      {showMenu && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fadeIn">
-            <div className={`w-full max-w-lg rounded-[3rem] p-8 overflow-y-auto max-h-[85vh] shadow-2xl transform transition-all duration-300 animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-slate-700' : 'bg-white'}`}>
-                <div className="flex justify-between items-center mb-6 border-b-2 border-cyan-500/20 pb-4">
-                    <h2 className="text-2xl font-black uppercase italic bg-gradient-to-r from-cyan-600 to-cyan-500 bg-clip-text text-transparent flex items-center gap-2">🥟 Funciones</h2>
-                    <button onClick={() => setShowMenu(false)} className="bg-black/10 hover:bg-black/20 w-10 h-10 rounded-full font-bold transition-all duration-300">✕</button>
-                </div>
-                <div className="space-y-6">
-                    <Link href="/recuerdos" className="flex items-center justify-between p-5 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-[2rem] font-black uppercase italic shadow-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95 group">
-                        <span className="flex items-center gap-3"><span className="text-3xl group-hover:rotate-12 transition-transform">📸</span> Álbum de Recuerdos</span>
-                        <span className="text-2xl group-hover:translate-x-1 transition-transform">→</span>
-                    </Link>
-                    <Link href="/productos" className="flex items-center justify-between p-5 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-[2rem] font-black uppercase italic shadow-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95 group">
-                        <span className="flex items-center gap-3"><span className="text-3xl group-hover:rotate-12 transition-transform">🍴</span> Gestionar Menú</span>
-                        <span className="text-2xl group-hover:translate-x-1 transition-transform">→</span>
-                    </Link>
-                    {/* ✅ NUEVO LINK: GASTOS PARQUEADERO */}
-                    <button onClick={() => { setShowParqueaderoModal(true); setShowMenu(false); }} className="flex items-center justify-between p-5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-[2rem] font-black uppercase italic shadow-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95 group">
-                        <span className="flex items-center gap-3"><span className="text-3xl group-hover:rotate-12 transition-transform">🅿️</span> Control Parqueadero</span>
-                        <span className="text-2xl group-hover:translate-x-1 transition-transform">→</span>
-                    </button>
-                    <section className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 p-5 rounded-[2rem] border border-cyan-500/20">
-                        <h3 className="text-[11px] font-black uppercase text-cyan-600 mb-4 tracking-widest flex items-center gap-2">🛒 <span>Lista de Compras</span></h3>
-                        <form onSubmit={agregarCompra} className="flex gap-2 mb-4">
-                            <input type="text" value={nuevaCompra} onChange={e => setNuevaCompra(e.target.value)} className={`flex-1 p-3 rounded-xl border-2 text-sm uppercase font-bold outline-none transition-all focus:ring-2 focus:ring-cyan-500/50 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-200'}`} placeholder="¿Qué falta?" />
-                            <button className="bg-gradient-to-r from-cyan-600 to-cyan-500 text-white px-5 rounded-xl font-black shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95">+</button>
-                        </form>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {compras.map(item => (
-                                <div key={item.id} className="flex justify-between items-center bg-white/30 dark:bg-slate-800/50 p-3 rounded-xl border group transition-all hover:shadow-md">
-                                    <span onClick={() => toggleCompra(item.id, item.comprado)} className={`text-xs font-bold uppercase cursor-pointer transition-all ${item.comprado ? 'line-through opacity-40' : 'hover:text-cyan-600'}`}>{item.articulo}</span>
-                                    <button onClick={() => eliminarCompra(item.id)} className="text-red-500 hover:text-red-700 p-1 transition-colors">✕</button>
-                                </div>
-                            ))}
+      <Sidebar 
+        isOpen={showMenu} 
+        onClose={() => setShowMenu(false)} 
+        onAction={(type) => {
+          if (type === 'CIERRE') setShowCierreModal(true)
+          if (type === 'PARQUEADERO') setShowParqueaderoModal(true)
+          if (type === 'PIPETAS') setShowPipetasModal(true)
+        }}
+      >
+        <div className="mt-8 pt-8 border-t-2 border-orange-500/10 space-y-6">
+            <Link href="/recuerdos" className="flex items-center justify-between p-4 bg-orange-500/10 rounded-2xl font-black uppercase text-xs text-orange-600">
+                <span>📸 Álbum de Recuerdos</span>
+                <span>→</span>
+            </Link>
+            
+            <section className="bg-cyan-500/5 p-4 rounded-[2rem] border border-cyan-500/10">
+                <h3 className="text-[10px] font-black uppercase text-cyan-600 mb-3 tracking-widest">🛒 Lista de Compras</h3>
+                <form onSubmit={agregarCompra} className="flex gap-2 mb-3">
+                    <input type="text" value={nuevaCompra} onChange={e => setNuevaCompra(e.target.value)} className={`flex-1 p-2.5 rounded-xl border-2 text-xs uppercase font-bold outline-none ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'}`} placeholder="¿Qué falta?" />
+                    <button className="bg-cyan-600 text-white px-4 rounded-xl font-black shadow-md">+</button>
+                </form>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {compras.map(item => (
+                        <div key={item.id} className="flex justify-between items-center bg-white/30 dark:bg-slate-800/50 p-2 rounded-xl border">
+                            <span onClick={() => toggleCompra(item.id, item.comprado)} className={`text-[10px] font-bold uppercase cursor-pointer ${item.comprado ? 'line-through opacity-40' : ''}`}>{item.articulo}</span>
+                            <button onClick={() => eliminarCompra(item.id)} className="text-red-500 text-[10px]">✕</button>
                         </div>
-                    </section>
-                    <section className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 p-5 rounded-[2rem] border border-purple-500/20">
-                        <h3 className="text-[11px] font-black uppercase text-purple-600 mb-4 tracking-widest flex items-center gap-2">📝 <span>Pendientes</span></h3>
-                        <form onSubmit={agregarTodo} className="flex gap-2 mb-4">
-                            <input type="text" value={nuevoTodo} onChange={e => setNuevoTodo(e.target.value)} className={`flex-1 p-3 rounded-xl border-2 text-sm uppercase font-bold outline-none transition-all focus:ring-2 focus:ring-purple-500/50 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-200'}`} placeholder="Tarea nueva..." />
-                            <button className="bg-gradient-to-r from-purple-600 to-purple-500 text-white px-5 rounded-xl font-black shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95">+</button>
-                        </form>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {todos.map(todo => (
-                                <div key={todo.id} className="flex justify-between items-center bg-white/30 dark:bg-slate-800/50 p-3 rounded-xl border group transition-all hover:shadow-md">
-                                    <div className="flex items-center gap-3 flex-1">
-                                        <input type="checkbox" checked={todo.done} onChange={() => toggleTodo(todo.id, todo.done)} className="accent-purple-600 w-5 h-5 cursor-pointer" />
-                                        <span className={`text-xs font-bold uppercase transition-all ${todo.done ? 'line-through opacity-40' : ''}`}>{todo.text}</span>
-                                    </div>
-                                    <button onClick={() => eliminarTodo(todo.id)} className="text-red-500 hover:text-red-700 p-1 transition-colors">✕</button>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
+                    ))}
                 </div>
-            </div>
+            </section>
+
+            <section className="bg-purple-500/5 p-4 rounded-[2rem] border border-purple-500/10">
+                <h3 className="text-[10px] font-black uppercase text-purple-600 mb-3 tracking-widest">📝 Pendientes</h3>
+                <form onSubmit={agregarTodo} className="flex gap-2 mb-3">
+                    <input type="text" value={nuevoTodo} onChange={e => setNuevoTodo(e.target.value)} className={`flex-1 p-2.5 rounded-xl border-2 text-xs uppercase font-bold outline-none ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'}`} placeholder="Tarea..." />
+                    <button className="bg-purple-600 text-white px-4 rounded-xl font-black shadow-md">+</button>
+                </form>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {todos.map(todo => (
+                        <div key={todo.id} className="flex items-center justify-between bg-white/30 dark:bg-slate-800/50 p-2 rounded-xl border">
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" checked={todo.done} onChange={() => toggleTodo(todo.id, todo.done)} className="w-4 h-4" />
+                                <span className={`text-[10px] font-bold uppercase ${todo.done ? 'line-through opacity-40' : ''}`}>{todo.text}</span>
+                            </div>
+                            <button onClick={() => eliminarTodo(todo.id)} className="text-red-500 text-[10px]">✕</button>
+                        </div>
+                    ))}
+                </div>
+            </section>
         </div>
-      )}
+      </Sidebar>
       {/* 🅿️ MODAL DE CONTROL PARQUEADERO (NUEVO) */}
       {showParqueaderoModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn text-black">
           <div className={`w-full max-w-lg rounded-[3rem] p-8 overflow-y-auto max-h-[90vh] shadow-2xl transform transition-all duration-300 animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-slate-700 text-white' : 'bg-white'}`}>
             <div className="flex justify-between items-center mb-6 border-b-2 border-blue-500/20 pb-4">
               <h2 className="text-2xl font-black uppercase italic bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent flex items-center gap-2">🅿️ Control Parqueadero</h2>
-              <button onClick={() => setShowParqueaderoModal(false)} className={`w-10 h-10 rounded-full font-bold transition-all duration-300 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-black/10 hover:bg-black/20'}`}>✕</button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setModoEdicionParqueadero(!modoEdicionParqueadero)} 
+                  className={`w-10 h-10 rounded-full font-bold transition-all duration-300 flex items-center justify-center ${modoEdicionParqueadero ? 'bg-orange-500 text-white' : 'bg-blue-100 text-blue-600'}`}
+                  title="Editar Registro"
+                >
+                  {modoEdicionParqueadero ? '✕' : '✏️'}
+                </button>
+                <button onClick={() => { setShowParqueaderoModal(false); setModoEdicionParqueadero(false); }} className={`w-10 h-10 rounded-full font-bold transition-all duration-300 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-black/10 hover:bg-black/20'}`}>✕</button>
+              </div>
             </div>
             {dataParqueadero ? (
               <div className="space-y-6">
-                {/* ESTADO ACTUAL */}
-                <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-6 rounded-[2.5rem] border-2 border-blue-500/20 text-center">
-                  <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">Días Acumulados</p>
-                  <p className="text-4xl font-black text-blue-600 mb-4">{calcularDiasTranscurridos()} días</p>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className={`${darkMode ? 'bg-slate-800' : 'bg-gray-50'} p-3 rounded-2xl`}>
-                      <p className="text-[9px] font-black opacity-50 uppercase">Total Tarifa</p>
-                      <p className="text-lg font-black">${(calcularDiasTranscurridos() * 5000).toLocaleString()}</p>
+                {modoEdicionParqueadero ? (
+                  <div className="bg-orange-500/10 p-6 rounded-[2.5rem] border-2 border-orange-500/20 space-y-4">
+                    <h3 className="text-sm font-black uppercase text-orange-600">✏️ Editar Registro Inicial</h3>
+                    <div>
+                      <label className="text-[10px] font-black uppercase opacity-60">Fecha de Inicio</label>
+                      <input 
+                        type="date" 
+                        value={editFechaInicio} 
+                        onChange={e => setEditFechaInicio(e.target.value)}
+                        className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+                      />
                     </div>
-                    <div className={`${darkMode ? 'bg-slate-800' : 'bg-gray-50'} p-3 rounded-2xl`}>
-                      <p className="text-[9px] font-black opacity-50 uppercase">Ya Abonado</p>
-                      <p className="text-lg font-black text-green-600">${Number(dataParqueadero.pagado || 0).toLocaleString()}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t border-blue-500/10">
-                    <p className="text-[10px] font-black opacity-50 uppercase">Monto Pendiente</p>
-                    <p className="text-3xl font-black text-orange-600">${calcularDeudaActual().toLocaleString()}</p>
-                  </div>
-                </div>
-                {/* ACCIONES */}
-                <section className="space-y-4">
-                  <div className={`${darkMode ? 'bg-blue-900/20' : 'bg-blue-50'} p-5 rounded-[2rem] border border-blue-500/10`}>
-                    <h3 className="text-[11px] font-black uppercase text-blue-600 mb-4 tracking-widest">💸 Registrar Abono</h3>
-                    <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-black uppercase opacity-60">Monto ya Pagado</label>
                       <input 
                         type="number" 
-                        value={montoAbono} 
-                        onChange={e => setMontoAbono(e.target.value)}
-                        placeholder="Monto a abonar..." 
-                        className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-100'}`}
+                        value={editPagadoInicial} 
+                        onChange={e => setEditPagadoInicial(e.target.value)}
+                        className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
                       />
-                      <input 
-                        type="text" 
-                        value={notaParqueadero} 
-                        onChange={e => setNotaParqueadero(e.target.value)}
-                        placeholder="Nota o detalle..." 
-                        className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-100'}`}
-                      />
-                      <button 
-                        onClick={registrarAbonoParqueadero}
-                        className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-2xl font-black uppercase shadow-lg hover:shadow-xl transition-all active:scale-95"
-                      >
-                        Confirmar Abono
-                      </button>
                     </div>
+                    <button 
+                      onClick={editarRegistroParqueadero}
+                      className="w-full py-4 bg-orange-600 text-white rounded-2xl font-black uppercase shadow-lg hover:bg-orange-700 transition-all"
+                    >
+                      Guardar Cambios
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => { if(confirm("¿Estás seguro de reiniciar el ciclo? Esto registrará el pago total.")) registrarPagoTotal() }}
-                    className="w-full py-4 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-2xl font-black uppercase shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span>✅ Pago Total y Reiniciar</span>
-                  </button>
-                  <button 
-                    onClick={agregarDiaManual}
-                    className="w-full py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-black uppercase text-xs shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-dashed border-slate-400 dark:border-slate-600"
-                  >
-                    <span>➕ Agregar día manual (+ $5,000)</span>
-                  </button>
-                </section>
+                ) : (
+                  <>
+                    {/* ESTADO ACTUAL */}
+                    <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-6 rounded-[2.5rem] border-2 border-blue-500/20 text-center">
+                      <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">Días Acumulados</p>
+                      <p className="text-4xl font-black text-blue-600 mb-4">{calcularDiasTranscurridos()} días</p>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className={`${darkMode ? 'bg-slate-800' : 'bg-gray-50'} p-3 rounded-2xl`}>
+                          <p className="text-[9px] font-black opacity-50 uppercase">Total Tarifa</p>
+                          <p className="text-lg font-black">${(calcularDiasTranscurridos() * 5000).toLocaleString()}</p>
+                        </div>
+                        <div className={`${darkMode ? 'bg-slate-800' : 'bg-gray-50'} p-3 rounded-2xl`}>
+                          <p className="text-[9px] font-black opacity-50 uppercase">Ya Abonado</p>
+                          <p className="text-lg font-black text-green-600">${Number(dataParqueadero.pagado || 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 pt-4 border-t border-blue-500/10">
+                        <p className="text-[10px] font-black opacity-50 uppercase">Monto Pendiente</p>
+                        <p className="text-3xl font-black text-orange-600">${calcularDeudaActual().toLocaleString()}</p>
+                      </div>
+                    </div>
+                    {/* ACCIONES */}
+                    <section className="space-y-4">
+                      <div className={`${darkMode ? 'bg-blue-900/20' : 'bg-blue-50'} p-5 rounded-[2rem] border border-blue-500/10`}>
+                        <h3 className="text-[11px] font-black uppercase text-blue-600 mb-4 tracking-widest">💸 Registrar Abono</h3>
+                        <div className="space-y-3">
+                          <input 
+                            type="number" 
+                            value={montoAbono} 
+                            onChange={e => setMontoAbono(e.target.value)}
+                            placeholder="Monto a abonar..." 
+                            className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-100'}`}
+                          />
+                          <input 
+                            type="text" 
+                            value={notaParqueadero} 
+                            onChange={e => setNotaParqueadero(e.target.value)}
+                            placeholder="Nota o detalle..." 
+                            className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-gray-100'}`}
+                          />
+                          <button 
+                            onClick={registrarAbonoParqueadero}
+                            className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-2xl font-black uppercase shadow-lg hover:shadow-xl transition-all active:scale-95"
+                          >
+                            Confirmar Abono
+                          </button>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => { if(confirm("¿Estás seguro de reiniciar el ciclo? Esto registrará el pago total.")) registrarPagoTotal() }}
+                        className="w-full py-4 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-2xl font-black uppercase shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <span>✅ Pago Total y Reiniciar</span>
+                      </button>
+                      <button 
+                        onClick={agregarDiaManual}
+                        className="w-full py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-black uppercase text-xs shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border-2 border-dashed border-slate-400 dark:border-slate-600"
+                      >
+                        <span>➕ Agregar día manual (+ $5,000)</span>
+                      </button>
+                    </section>
+                  </>
+                )}
                 {/* HISTORIAL */}
                 <section className="bg-slate-500/5 p-5 rounded-[2rem] border border-slate-500/10">
                   <h3 className="text-[11px] font-black uppercase text-slate-600 mb-4 tracking-widest">📜 Historial de Pagos</h3>
@@ -683,9 +1090,27 @@ export default function Dashboard() {
                             <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${h.tipo === 'pago_total' ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'}`}>
                               {h.tipo === 'pago_total' ? 'Pago Total' : 'Abono'}
                             </span>
-                            <span className="text-[10px] opacity-40 font-bold">{new Date(h.fecha).toLocaleDateString()}</span>
+                            <div className="flex gap-2 items-center">
+                              <span className="text-[10px] opacity-40 font-bold">{new Date(h.fecha).toLocaleDateString()}</span>
+                              <button 
+                                onClick={() => setItemAbonoEdit(h)}
+                                className="text-[10px] bg-gray-200 dark:bg-slate-700 p-1 rounded hover:scale-110 transition-all"
+                              >✏️</button>
+                            </div>
                           </div>
-                          <p className="text-sm font-black mt-1">${Number(h.monto).toLocaleString()}</p>
+                          {itemAbonoEdit?.id === h.id ? (
+                            <div className="flex gap-2 mt-2">
+                              <input 
+                                type="number" 
+                                defaultValue={h.monto} 
+                                onBlur={(e) => editarAbonoParqueadero(h.id, e.target.value)}
+                                className="w-full p-1 text-xs rounded border border-blue-500 bg-transparent outline-none"
+                                autoFocus
+                              />
+                            </div>
+                          ) : (
+                            <p className="text-sm font-black mt-1">${Number(h.monto).toLocaleString()}</p>
+                          )}
                           {h.nota && <p className="text-[10px] opacity-60 italic mt-1">{h.nota}</p>}
                         </div>
                       ))
@@ -699,20 +1124,307 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      {/* NAVBAR MEJORADO CON EFECTOS GLASS */}
-      <nav className={`${darkMode ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-orange-200'} backdrop-blur-xl fixed bottom-6 left-6 right-6 border-4 rounded-[3rem] p-4 flex justify-around items-center z-50 shadow-2xl`}>
-        <Link href="/" className="flex flex-col items-center group">
-          <span className="text-4xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1">🏠</span>
-          <span className="text-[10px] font-black uppercase mt-1 opacity-70 group-hover:opacity-100 transition-opacity">Inicio</span>
-        </Link>
-        <Link href="/fiados/nuevo" className="bg-gradient-to-r from-orange-600 to-orange-500 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-xl -mt-16 border-[6px] border-orange-50 dark:border-slate-800 transition-all duration-300 hover:shadow-2xl hover:scale-110 active:scale-95 group">
-          <span className="text-4xl font-bold transition-transform duration-300 group-hover:rotate-90">+</span>
-        </Link>
-        <Link href="/clientes" className="flex flex-col items-center group">
-          <span className="text-4xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1">👤</span>
-          <span className="text-[10px] font-black uppercase mt-1 opacity-70 group-hover:opacity-100 transition-opacity">Deudores</span>
-        </Link>
-      </nav>
+      {/* 🔥 MODAL DE CONTROL PIPETAS (NUEVO) */}
+      {showPipetaModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn text-black">
+          <div className={`w-full max-w-lg rounded-[3rem] p-8 overflow-y-auto max-h-[90vh] shadow-2xl transform transition-all duration-300 animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-slate-700 text-white' : 'bg-white'}`}>
+            <div className="flex justify-between items-center mb-6 border-b-2 border-gray-500/20 pb-4">
+              <h2 className="text-2xl font-black uppercase italic bg-gradient-to-r from-gray-700 to-gray-600 bg-clip-text text-transparent flex items-center gap-2">🔥 Control Pipetas</h2>
+              <button onClick={() => { setShowPipetaModal(false); setDataPipeta(null); }} className={`w-10 h-10 rounded-full font-bold transition-all duration-300 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-black/10 hover:bg-black/20'}`}>✕</button>
+            </div>
+            
+            <div className="space-y-6">
+              {dataPipeta ? (
+                // PANTALLA DE ABONO/LIQUIDACIÓN (IGUAL A PARQUEADERO)
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="bg-gradient-to-br from-orange-500/10 to-orange-500/5 p-6 rounded-[2.5rem] border-2 border-orange-500/20 text-center">
+                    <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">Costo Pipeta</p>
+                    <p className="text-4xl font-black text-orange-600 mb-4">${Number(dataPipeta.costo).toLocaleString()}</p>
+                    <div className="flex justify-around border-t border-orange-500/10 pt-4">
+                      <div>
+                        <p className="text-[9px] font-black opacity-50 uppercase">Pagado</p>
+                        <p className="text-lg font-black text-green-600">${Number(dataPipeta.pagado || 0).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black opacity-50 uppercase">Pendiente</p>
+                        <p className="text-lg font-black text-red-600">${(dataPipeta.costo - (dataPipeta.pagado || 0)).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`${darkMode ? 'bg-slate-800' : 'bg-orange-50'} p-5 rounded-[2rem] border border-orange-500/10`}>
+                    <h3 className="text-[11px] font-black uppercase text-orange-600 mb-4 tracking-widest">💸 Registrar Abono / Liquidar</h3>
+                    <div className="space-y-3">
+                      <input 
+                        type="number" 
+                        value={montoAbonoPipeta} 
+                        onChange={e => setMontoAbonoPipeta(e.target.value)}
+                        placeholder="Monto a pagar..." 
+                        className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-gray-100'}`}
+                      />
+                      <input 
+                        type="text" 
+                        value={notaPipeta} 
+                        onChange={e => setNotaPipeta(e.target.value)}
+                        placeholder="Nota (opcional)..." 
+                        className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-gray-100'}`}
+                      />
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setMontoAbonoPipeta(dataPipeta.costo - (dataPipeta.pagado || 0))}
+                          className="px-4 bg-green-500/20 text-green-600 rounded-xl font-black text-[10px] uppercase"
+                        >Liquidar Todo</button>
+                        <button 
+                          onClick={registrarAbonoPipeta}
+                          className="flex-1 py-4 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-2xl font-black uppercase shadow-lg active:scale-95 transition-all"
+                        >Confirmar</button>
+                      </div>
+                      <button onClick={() => setDataPipeta(null)} className="w-full text-[10px] font-black uppercase opacity-50">← Volver al listado</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // PANTALLA PRINCIPAL: NUEVA PIPETA Y LISTADO
+                <div className="space-y-8 animate-fadeIn">
+                  <section className={`${darkMode ? 'bg-slate-800' : 'bg-gray-50'} p-6 rounded-[2.5rem] border-2 border-gray-500/20`}>
+                    <h3 className="text-[11px] font-black uppercase text-gray-500 mb-4 tracking-widest flex items-center gap-2">🛒 <span>Nueva Pipeta</span></h3>
+                    <div className="space-y-4">
+                      <input 
+                        type="number" 
+                        value={costoPipeta} 
+                        onChange={e => setCostoPipeta(e.target.value)}
+                        placeholder="¿Cuánto costó?" 
+                        className={`w-full p-4 rounded-2xl border-2 outline-none transition-all ${darkMode ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-200'}`}
+                      />
+                      <div className="flex gap-2 p-1 bg-gray-200 dark:bg-slate-700 rounded-2xl">
+                        <button 
+                          onClick={() => setPagoTipoPipeta('pagado')}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${pagoTipoPipeta === 'pagado' ? 'bg-green-600 text-white shadow-md' : 'opacity-40'}`}
+                        >PAGADO ✅</button>
+                        <button 
+                          onClick={() => setPagoTipoPipeta('fiado')}
+                          className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${pagoTipoPipeta === 'fiado' ? 'bg-red-600 text-white shadow-md' : 'opacity-40'}`}
+                        >FIADO ❌</button>
+                      </div>
+                      <button 
+                        onClick={registrarPipeta}
+                        className="w-full py-4 bg-gradient-to-r from-gray-700 to-gray-600 text-white rounded-2xl font-black uppercase shadow-lg hover:shadow-xl transition-all active:scale-95"
+                      >Registrar Pedido</button>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <h3 className="text-[11px] font-black uppercase text-gray-500 tracking-widest">📜 Historial de Pipetas</h3>
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                      {pipetas.length === 0 ? (
+                        <p className="text-xs opacity-50 text-center py-4 italic">No hay registros aún</p>
+                      ) : (
+                        pipetas.map(p => (
+                          <div key={p.id} className={`flex flex-col p-4 rounded-2xl border-2 ${p.estado === 'pagado' ? 'border-green-500/20 bg-green-500/5' : 'border-red-500/20 bg-red-500/5'}`}>
+                            <div className="flex justify-between items-center mb-2">
+                              <div>
+                                <p className="text-lg font-black">${Number(p.costo).toLocaleString()}</p>
+                                <p className="text-[9px] opacity-50 font-bold uppercase">{new Date(p.creado_el).toLocaleDateString()} - {p.estado}</p>
+                              </div>
+                              {p.estado === 'fiado' && (
+                                <button 
+                                  onClick={() => setDataPipeta(p)}
+                                  className="bg-orange-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-md active:scale-95 transition-all"
+                                >Abonar</button>
+                              )}
+                            </div>
+                            {/* MINI HISTORIAL DE PIPETA PARA EDITAR ABONOS */}
+                            <div className="space-y-1 mt-2 border-t border-black/5 pt-2">
+                              {/* Esta parte es simplificada, idealmente buscaríamos en pipetas_historial filtrado por p.id */}
+                              <p className="text-[8px] font-black uppercase opacity-40">Toca para corregir abonos en la base de datos si es necesario</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌅 MODAL DE APERTURA (4 AM) */}
+      {showAperturaModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fadeIn">
+          <div className={`w-full max-w-sm rounded-[3rem] p-8 text-center shadow-2xl animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-orange-500/30' : 'bg-white'}`}>
+            <span className="text-6xl mb-4 block animate-bounce">☕</span>
+            <h2 className="text-2xl font-black uppercase italic mb-2">¡Bienvenido!</h2>
+            <p className="text-xs font-bold opacity-60 uppercase mb-6">Selecciona tu perfil e ingresa tu PIN</p>
+            
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {atendentes.map(a => (
+                <button 
+                  key={a.nombre}
+                  onClick={() => {
+                    const pin = prompt(`Ingresa PIN de ${a.nombre}:`)
+                    if (pin === a.pin) {
+                      setNombreAtendente(a.nombre)
+                      setAtendenteLogueado(a)
+                      toast.success(`Bienvenido ${a.nombre}`)
+                    } else {
+                      toast.error("PIN Incorrecto")
+                    }
+                  }}
+                  className={`py-3 rounded-xl font-black uppercase text-xs transition-all border-2 ${nombreAtendente === a.nombre ? 'bg-orange-600 border-orange-600 text-white shadow-lg' : 'bg-transparent border-gray-200 opacity-60'}`}
+                >
+                  {a.nombre}
+                </button>
+              ))}
+              <button 
+                onClick={() => {
+                   const pin = prompt("Ingresa clave Admin (Maria) para agregar personal:")
+                   if (pin === '1407') {
+                     const nuevo = prompt("Nombre del nuevo personal:").toUpperCase()
+                     const nuevoPin = prompt(`Asigna un PIN para ${nuevo}:`)
+                     if (nuevo && nuevoPin) setAtendentes([...atendentes, { nombre: nuevo, pin: nuevoPin }])
+                   } else {
+                     toast.error("Acceso denegado")
+                   }
+                }}
+                className="py-3 rounded-xl font-black uppercase text-[10px] bg-black/5 border-2 border-dashed border-gray-300 opacity-50"
+              >
+                + AGREGAR
+              </button>
+            </div>
+
+            <p className="text-[10px] font-bold opacity-40 uppercase mb-8">¿Abres el puesto hoy?</p>
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => registrarApertura(true)}
+                className="py-4 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-2xl font-black uppercase shadow-lg active:scale-95"
+              >SÍ, A DARLE 💪</button>
+              <button 
+                onClick={() => registrarApertura(false)}
+                className="py-4 bg-gray-200 dark:bg-slate-800 text-gray-500 rounded-2xl font-black uppercase active:scale-95"
+              >HOY NO 😴</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌙 MODAL DE CIERRE (12 PM+) */}
+      {showCierreModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fadeIn text-black">
+          <div className={`w-full max-w-md rounded-[3rem] p-8 overflow-y-auto max-h-[90vh] shadow-2xl animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-orange-500/30 text-white' : 'bg-white'}`}>
+            <h2 className="text-2xl font-black uppercase italic mb-6 bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent text-center">📝 Cierre de Jornada</h2>
+            
+            <div className="space-y-5">
+              <section>
+                <label className="text-[10px] font-black uppercase opacity-50 block mb-2">🧂 Kg de Masa Harina</label>
+                <div className="flex gap-4 items-center">
+                  <input 
+                    type="number" value={kgMasa} onChange={e => setKgMasa(e.target.value)}
+                    placeholder="Ej: 5" className={`flex-1 p-4 rounded-2xl border-2 outline-none ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-gray-50 border-gray-100'}`}
+                  />
+                  <div className="text-right">
+                    <p className="text-[8px] font-black uppercase opacity-40">Estimado Empanadas</p>
+                    <p className="text-sm font-black text-orange-600">{kgMasa ? Number(kgMasa) * 35 : 0}</p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10 space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase">¿Hizo Jugos? 🥤</span>
+                  <input type="checkbox" checked={hizoJugo} onChange={e => setHizoJugo(e.target.checked)} className="w-5 h-5 accent-orange-500" />
+                </div>
+                {hizoJugo && (
+                  <input 
+                    type="number" value={cantJugo} onChange={e => setCantJugo(e.target.value)}
+                    placeholder="¿Cuántos vendió?" className={`w-full p-4 rounded-2xl border-2 outline-none ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+                  />
+                )}
+              </section>
+
+              <section className="p-4 bg-red-500/5 rounded-2xl border border-red-500/10 space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase">¿Hizo Tortas? 🍔</span>
+                  <input type="checkbox" checked={hizoTortas} onChange={e => setHizoTortas(e.target.checked)} className="w-5 h-5 accent-orange-500" />
+                </div>
+                {hizoTortas && (
+                  <input 
+                    type="number" value={cantTortas} onChange={e => setCantTortas(e.target.value)}
+                    placeholder="¿Cuántas vendió?" className={`w-full p-4 rounded-2xl border-2 outline-none ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+                  />
+                )}
+              </section>
+
+              <section>
+                <label className="text-[10px] font-black uppercase opacity-50 block mb-2">💵 Ventas en Efectivo (Venta Directa)</label>
+                <input 
+                  type="number" value={ventasEfectivo} onChange={e => setVentasEfectivo(e.target.value)}
+                  placeholder="Total hoy en caja..." className={`w-full p-4 rounded-2xl border-2 outline-none border-green-500/30 ${darkMode ? 'bg-slate-800' : 'bg-gray-50'}`}
+                />
+              </section>
+
+              <section className="bg-red-500/5 p-5 rounded-[2.5rem] border-2 border-red-500/20 space-y-4">
+                <h3 className="text-sm font-black uppercase text-red-600 flex items-center gap-2">💸 Gastos de Hoy</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    {id:'verduras', n:'Verduras'}, {id:'frutas', n:'Frutas'}, {id:'carne', n:'Carne'},
+                    {id:'servilletas', n:'Servilletas'}, {id:'cafe', n:'Café'}, {id:'mezcladores', n:'Mezcladores'},
+                    {id:'vasos', n:'Vasos'}, {id:'aluminio', n:'Aluminio'}, {id:'harina', n:'Harina'},
+                    {id:'chicle', n:'Papel Chicle'}, {id:'otros', n:'Otros'}
+                  ].map(g => (
+                    <div key={g.id}>
+                      <label className="text-[8px] font-black uppercase opacity-50">{g.n}</label>
+                      <input 
+                        type="number" 
+                        value={gastos[g.id]} 
+                        onChange={e => setGastos({...gastos, [g.id]: e.target.value})}
+                        className={`w-full p-2 text-xs rounded-xl border-2 outline-none ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100'}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <div className="p-5 bg-gradient-to-br from-orange-600 to-orange-500 rounded-[2rem] text-white shadow-xl">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] font-black uppercase opacity-80">Producción Estimada (Masa+Extras)</span>
+                  <span className="text-sm font-black">${(
+                    (Number(kgMasa) * 35 * (productosPrecios['EMPANADA'] || 3000)) + 
+                    (Number(cantJugo) * (productosPrecios['JUGO'] || 0)) + 
+                    (Number(cantTortas) * (productosPrecios['TORTA DE CARNE'] || 0))
+                  ).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] font-black uppercase opacity-80">Efectivo en Caja (Venta Directa)</span>
+                  <span className="text-sm font-black text-green-200">${Number(ventasEfectivo).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center mb-1 border-b border-white/10 pb-1">
+                  <span className="text-[10px] font-black uppercase opacity-80">Recaudos Fiados Hoy</span>
+                  <span className="text-sm font-black text-blue-200">+${totalIngresosHoy.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-[10px] font-black uppercase opacity-80">Total Gastos Hoy</span>
+                  <span className="text-lg font-black text-red-200">-${Object.values(gastos).reduce((a,b) => a + Number(b), 0).toLocaleString()}</span>
+                </div>
+                <div className="pt-2 border-t border-white/20 flex justify-between items-center">
+                  <span className="text-xs font-black uppercase">Ganancia Real Neta</span>
+                  <span className="text-2xl font-black">${(
+                    (Number(ventasEfectivo) + totalIngresosHoy) -
+                    Object.values(gastos).reduce((a,b) => a + Number(b), 0)
+                  ).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={registrarCierre}
+                className="w-full py-5 bg-black text-white rounded-3xl font-black uppercase shadow-xl hover:bg-slate-900 active:scale-95 transition-all mt-4"
+              >Guardar Cierre y Gastos</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <Navbar onMenuClick={() => setShowMenu(true)} />
       <style jsx>{`
         @keyframes marquee {
           0% { transform: translateX(0); }

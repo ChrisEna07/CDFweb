@@ -4,6 +4,9 @@ import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/context/ThemeContext'
 import Link from 'next/link'
 import AdminGuard from '@/components/AdminGuard'
+import Navbar from '@/components/Navbar'
+import Sidebar from '@/components/Sidebar'
+import { Toaster, toast } from 'sonner'
 
 export default function ListaClientes() {
   const { darkMode } = useTheme()
@@ -14,6 +17,9 @@ export default function ListaClientes() {
   // Estados para la seguridad con PIN
   const [guardOpen, setGuardOpen] = useState(false)
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
+  
+  // Estados para el Menú
+  const [showMenu, setShowMenu] = useState(false)
 
   useEffect(() => {
     fetchClientes()
@@ -189,22 +195,16 @@ export default function ListaClientes() {
         )}
       </div>
 
-      {/* Menú de Navegación Inferior Mejorado */}
-      <nav className={`${darkMode ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-orange-200'} backdrop-blur-xl fixed bottom-6 left-6 right-6 border-4 rounded-[3rem] p-4 flex justify-around items-center z-50 shadow-2xl`}>
-        <Link href="/" className="flex flex-col items-center group">
-          <span className="text-4xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1">🏠</span>
-          <span className={`text-[10px] font-black uppercase mt-1 opacity-70 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-white' : 'text-black'}`}>Inicio</span>
-        </Link>
-        
-        <Link href="/fiados/nuevo" className="bg-gradient-to-r from-orange-600 to-orange-500 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-xl -mt-16 border-[6px] border-orange-50 dark:border-slate-800 transition-all duration-300 hover:shadow-2xl hover:scale-110 active:scale-95 group">
-          <span className="text-4xl font-bold transition-transform duration-300 group-hover:rotate-90">+</span>
-        </Link>
-
-        <Link href="/clientes" className="flex flex-col items-center group">
-          <span className="text-4xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 text-orange-600">👤</span>
-          <span className="text-[10px] font-black uppercase mt-1 text-orange-600">Clientes</span>
-        </Link>
-      </nav>
+      <Navbar onMenuClick={() => setShowMenu(true)} />
+      <Sidebar 
+        isOpen={showMenu} 
+        onClose={() => setShowMenu(false)} 
+        onAction={(type) => {
+          if (type === 'CIERRE') toast.info("Ve al Inicio para realizar el cierre")
+          if (type === 'PARQUEADERO') toast.info("Ve al Inicio para control parqueadero")
+          if (type === 'PIPETAS') toast.info("Ve al Inicio para control pipetas")
+        }}
+      />
 
       {/* Estilos globales para animaciones */}
       <style jsx global>{`

@@ -6,47 +6,9 @@ import { useTheme } from '@/context/ThemeContext'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
-// Componente AdminGuard Mejorado
-function AdminGuard({ isOpen, onClose, onConfirm, darkMode }) {
-  const [pin, setPin] = useState('')
-  const PIN_CORRECTO = "1407"
-
-  useEffect(() => {
-    if (pin.length === 4) {
-      if (pin === PIN_CORRECTO) {
-        onConfirm()
-        setPin('')
-        onClose()
-      } else {
-        toast.error("PIN INCORRECTO ❌")
-        setTimeout(() => setPin(''), 300)
-      }
-    }
-  }, [pin])
-
-  if (!isOpen) return null
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className={`${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-300'} w-full max-w-xs p-8 rounded-[2.5rem] border-4 shadow-2xl text-center transform transition-all duration-300 animate-slideUp`}>
-        <span className="text-5xl mb-4 block animate-pulse">🔐</span>
-        <h3 className={`text-xl font-black uppercase mb-4 ${darkMode ? 'text-white' : 'text-black'}`}>Confirmar Identidad</h3>
-        <p className="text-[9px] font-black uppercase opacity-50 mb-4 tracking-widest">PIN DE SEGURIDAD</p>
-        <input 
-          autoFocus
-          type="password" 
-          inputMode="numeric"
-          maxLength={4}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-          placeholder="••••"
-          className={`w-full p-4 text-center text-4xl tracking-[0.5em] font-black rounded-2xl border-2 mb-6 transition-all duration-300 focus:ring-2 focus:ring-orange-500/50 ${darkMode ? 'bg-slate-800 border-slate-600 text-white focus:border-orange-500' : 'bg-gray-100 border-gray-400 text-black focus:border-orange-500'}`}
-        />
-        <button onClick={onClose} className="w-full py-2 font-black uppercase text-xs opacity-50 hover:opacity-100 transition-opacity">Cancelar</button>
-      </div>
-    </div>
-  )
-}
+import AdminGuard from '@/components/AdminGuard'
+import Navbar from '@/components/Navbar'
+import Sidebar from '@/components/Sidebar'
 
 function FormularioCliente() {
   const router = useRouter()
@@ -59,6 +21,7 @@ function FormularioCliente() {
   const [telefono, setTelefono] = useState('')
   const [cargando, setCargando] = useState(false)
   const [mostrarPin, setMostrarPin] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
 
   useEffect(() => {
     if (clienteId) {
@@ -230,17 +193,12 @@ function FormularioCliente() {
         </div>
       </form>
 
-      {/* NAVEGACIÓN INFERIOR MEJORADA */}
-      <nav className={`${darkMode ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-orange-200'} backdrop-blur-xl fixed bottom-4 left-6 right-6 border-4 rounded-[3rem] p-4 flex justify-around items-center z-50 shadow-2xl`}>
-        <Link href="/" className="flex flex-col items-center group">
-          <span className="text-3xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1">🏠</span>
-          <span className={`text-[10px] font-black uppercase mt-1 opacity-70 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-white' : 'text-black'}`}>Inicio</span>
-        </Link>
-        <Link href="/clientes" className="flex flex-col items-center group">
-          <span className="text-3xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 text-orange-600">👥</span>
-          <span className="text-[10px] font-black uppercase mt-1 text-orange-600">Lista</span>
-        </Link>
-      </nav>
+      <Navbar onMenuClick={() => setShowMenu(true)} />
+      <Sidebar 
+        isOpen={showMenu} 
+        onClose={() => setShowMenu(false)} 
+        onAction={() => toast.info("Acción disponible en Inicio")}
+      />
 
       {/* ESTILOS GLOBALES */}
       <style jsx global>{`

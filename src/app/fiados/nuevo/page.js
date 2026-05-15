@@ -5,14 +5,18 @@ import { useRouter } from 'next/navigation'
 import { useTheme } from '@/context/ThemeContext'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import Navbar from '@/components/Navbar'
+import Sidebar from '@/components/Sidebar'
 
 export default function NuevoFiado() {
   const router = useRouter()
   const { darkMode } = useTheme()
   const [clientes, setClientes] = useState([])
   const [productosMenu, setProductosMenu] = useState([])
+  const [showMenu, setShowMenu] = useState(false)
   
   const [clienteId, setClienteId] = useState('')
+  const [clienteInfo, setClienteInfo] = useState(null)
   
   // CORRECCIÓN DE FECHA: Función robusta para obtener YYYY-MM-DD en hora local
   const getHoyLocal = () => {
@@ -33,6 +37,13 @@ export default function NuevoFiado() {
   const [notas, setNotas] = useState('')
   const [cargando, setCargando] = useState(false)
 
+  const validarMonto = (valor) => {
+    const v = Number(valor)
+    if (v > 0 && v < 100) {
+      toast.warning("⚠️ ¿Ingresaste un monto muy bajo? (Ej: 30 en vez de 30.000)", { duration: 4000 })
+    }
+  }
+
   const [foto, setFoto] = useState(null)
   const [preview, setPreview] = useState(null)
 
@@ -49,7 +60,7 @@ export default function NuevoFiado() {
 
     async function cargarDatos() {
       const [resClientes, resProductos] = await Promise.all([
-        supabase.from('clientes').select('id, apodo'),
+        supabase.from('clientes').select('id, apodo, blacklist'),
         supabase.from('productos').select('id, nombre, precio').order('nombre')
       ])
       setClientes(resClientes.data || [])
@@ -57,6 +68,42 @@ export default function NuevoFiado() {
     }
     cargarDatos()
   }, [])
+
+  // ✅ VALIDACIÓN INTELIGENTE DE CLIENTE
+  useEffect(() => {
+    if (!clienteId) {
+      setClienteInfo(null)
+      return
+    }
+    
+    const fetchInfo = async () => {
+      const { data: fiadosCli } = await supabase
+        .from('fiados')
+        .select('monto_total, creado_el, estado')
+        .eq('cliente_id', clienteId)
+        .eq('estado', 'pendiente')
+
+      const totalDeuda = fiadosCli?.reduce((acc, f) => acc + f.monto_total, 0) || 0
+      const oldestFiado = fiadosCli?.sort((a,b) => new Date(a.creado_el) - new Date(b.creado_el))[0]
+      const weeksOld = oldestFiado ? (new Date() - new Date(oldestFiado.creado_el)) / (1000 * 60 * 60 * 24 * 7) : 0
+      
+      const cli = clientes.find(c => c.id === clienteId)
+      
+      setClienteInfo({ totalDeuda, weeksOld, blacklist: cli?.blacklist })
+
+      if (cli?.blacklist) {
+        toast.error("🚫 CLIENTE EN LISTA NEGRA: Fiado bloqueado hasta que pague.", { duration: 6000 })
+      } else {
+        if (totalDeuda >= 100000) {
+          toast.warning(`⚠️ DEUDA ALTA: Debe $${totalDeuda.toLocaleString()}. Ten cuidado.`, { duration: 5000 })
+        }
+        if (weeksOld >= 3) {
+          toast.warning(`⏳ MOROSO: No paga hace ${Math.floor(weeksOld)} semanas.`, { duration: 5000 })
+        }
+      }
+    }
+    fetchInfo()
+  }, [clienteId, clientes])
 
   const actualizarItem = (index, campo, valor) => {
     const nuevosItems = [...itemsVenta]
@@ -76,6 +123,9 @@ export default function NuevoFiado() {
     e.preventDefault()
     if (!clienteId || itemsVenta.some(i => !i.productoId)) {
         return toast.error("Selecciona cliente y productos")
+    }
+    if (clienteInfo?.blacklist) {
+        return toast.error("No puedes fiar a un cliente en Lista Negra")
     }
     
     setCargando(true)
@@ -139,12 +189,12 @@ export default function NuevoFiado() {
 
   return (
     <div className={`min-h-screen p-4 pb-44 ${bgMain}`}>
-      <div className="w-full max-w-xl mx-auto mb-6 flex justify-between items-center">
-        <Link href="/" className="bg-orange-600 text-white px-5 py-2.5 rounded-xl font-black shadow-md">
-          ← VOLVER
-        </Link>
-        <span className="text-orange-600 font-black italic uppercase text-xs">Anotar Pedido</span>
-      </div>
+      <Navbar onMenuClick={() => setShowMenu(true)} />
+      <Sidebar 
+        isOpen={showMenu} 
+        onClose={() => setShowMenu(false)} 
+        onAction={() => toast.info("Acción disponible en Inicio")}
+      />
 
       <form onSubmit={guardarVenta} className="max-w-xl mx-auto space-y-6">
         
@@ -198,7 +248,7 @@ export default function NuevoFiado() {
           <label className="block text-[11px] font-black uppercase text-green-600">💰 Abono Inmediato</label>
           <input 
             type="number" value={abono} 
-            onChange={e => setAbono(Number(e.target.value))} 
+            onChange={e => { setAbono(Number(e.target.value)); validarMonto(e.target.value); }} 
             className={`${inputStyle} border-green-500/50 text-green-600 font-black`}
             placeholder="0"
           />

@@ -6,6 +6,8 @@ import { useTheme } from '@/context/ThemeContext'
 import Link from 'next/link'
 import AdminGuard from '@/components/AdminGuard'
 import { toast } from 'sonner'
+import Navbar from '@/components/Navbar'
+import Sidebar from '@/components/Sidebar'
 
 function DetallesClienteContent() {
   const searchParams = useSearchParams()
@@ -28,6 +30,16 @@ function DetallesClienteContent() {
   // Estados para el PIN de seguridad
   const [guardOpen, setGuardOpen] = useState(false)
   const [accionPendiente, setAccionPendiente] = useState(null)
+
+  // Estados para edición de deuda
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editDeuda, setEditDeuda] = useState(null)
+  const [nuevoMonto, setNuevoMonto] = useState('')
+  const [nuevasNotas, setNuevasNotas] = useState('')
+  const [editando, setEditando] = useState(false)
+  
+  // Estado para el menú global
+  const [showMenu, setShowMenu] = useState(false)
 
   useEffect(() => {
     if (clienteId) fetchDatos()
@@ -94,6 +106,30 @@ function DetallesClienteContent() {
     }
   }
 
+  // Función para editar una deuda completa (corrección)
+  const guardarEdicion = async () => {
+    if (!editDeuda || !nuevoMonto) return
+    setEditando(true)
+    try {
+      const { error } = await supabase
+        .from('fiados')
+        .update({ 
+          monto_total: Number(nuevoMonto),
+          notas: nuevasNotas.toUpperCase()
+        })
+        .eq('id', editDeuda.id)
+      
+      if (error) throw error
+      toast.success("✅ Registro corregido con éxito")
+      setShowEditModal(false)
+      fetchDatos()
+    } catch (err) {
+      toast.error("Error al editar: " + err.message)
+    } finally {
+      setEditando(false)
+    }
+  }
+
   // Función que se ejecuta tras poner el PIN correcto para pagos completos
   const confirmarAccion = async () => {
     if (accionPendiente?.tipo === 'PAGAR_UNO') {
@@ -134,6 +170,26 @@ function DetallesClienteContent() {
   
   const totalDeuda = deudas.reduce((acc, curr) => acc + curr.monto_total, 0)
   const totalPagado = historialPagados.reduce((acc, curr) => acc + curr.monto_total, 0)
+
+  // Lógica de recomendación de fiado
+  const obtenerRecomendacion = () => {
+    if (totalDeuda === 0) return { label: 'Recomendado', color: 'bg-green-500', icon: '✅', text: 'Cliente al día. Se le puede fiar sin problemas.' }
+    
+    let riesgo = 0
+    if (totalDeuda > 100000) riesgo += 2
+    if (totalDeuda > 200000) riesgo += 3
+    
+    // Verificar antigüedad (más de 3 semanas)
+    const tresSemanasMs = 3 * 7 * 24 * 60 * 60 * 1000
+    const tieneDeudaVieja = deudas.some(d => (new Date() - new Date(d.creado_el)) > tresSemanasMs)
+    if (tieneDeudaVieja) riesgo += 4
+
+    if (riesgo >= 7) return { label: '🚫 Detener Fiado', color: 'bg-red-600', icon: '⛔', text: 'Riesgo ALTO. Deuda excesiva o muy antigua. No fiar más hasta que abone.' }
+    if (riesgo >= 3) return { label: '⚠️ Con Cuidado', color: 'bg-amber-500', icon: '🟡', text: 'Riesgo moderado. Sugerimos pedir un abono antes de seguir fiando.' }
+    
+    return { label: '✅ Recomendado', color: 'bg-green-500', icon: '🟢', text: 'Buen historial. Se le puede seguir fiando.' }
+  }
+  const recomendacion = obtenerRecomendacion()
 
   if (cargando) {
     return (
@@ -279,6 +335,15 @@ function DetallesClienteContent() {
               <span className="text-4xl">👤</span>
             </div>
           </div>
+
+          {/* INDICADOR DE RECOMENDACIÓN */}
+          <div className={`${recomendacion.color} p-4 rounded-2xl flex items-center gap-4 border border-white/20 shadow-xl mb-4 animate-fadeIn`}>
+            <span className="text-3xl">{recomendacion.icon}</span>
+            <div>
+              <p className="font-black uppercase text-xs">{recomendacion.label}</p>
+              <p className="text-[10px] font-bold opacity-90 leading-tight">{recomendacion.text}</p>
+            </div>
+          </div>
           
           <div className="mt-6 bg-black/30 backdrop-blur-md p-5 rounded-2xl border border-white/20 flex justify-between items-center">
             <div>
@@ -384,10 +449,15 @@ function DetallesClienteContent() {
                 <div className="flex gap-2 mt-3">
                   <button 
                     onClick={() => { 
-                      setDeudaSeleccionada(d)
-                      setMontoAbono('')
-                      setNotaAbono('')
-                      setShowAbonoModal(true)
+                      const pin = prompt("🔐 Clave Admin para abonar:")
+                      if (['1407', '3008'].includes(pin)) {
+                        setDeudaSeleccionada(d)
+                        setMontoAbono('')
+                        setNotaAbono('')
+                        setShowAbonoModal(true)
+                      } else {
+                        toast.error("Clave incorrecta")
+                      }
                     }}
                     className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-black text-xs shadow-lg transition-all duration-300 hover:scale-105 active:scale-95"
                   >
@@ -399,6 +469,22 @@ function DetallesClienteContent() {
                   >
                     💰 PAGAR
                   </button>
+                  <button 
+                    onClick={() => { 
+                      const pin = prompt("🔐 Clave Admin para corregir:")
+                      if (['1407', '3008'].includes(pin)) {
+                        setEditDeuda(d)
+                        setNuevoMonto(d.monto_total)
+                        setNuevasNotas(d.notas || '')
+                        setShowEditModal(true)
+                      } else {
+                        toast.error("Clave incorrecta")
+                      }
+                    }}
+                    className="bg-gray-200 text-gray-700 dark:bg-slate-800 dark:text-gray-300 px-3 py-2 rounded-xl font-black text-[10px] shadow transition-all duration-300 hover:scale-105 active:scale-95"
+                  >
+                    ✏️
+                  </button>
                 </div>
               </div>
             ))
@@ -406,22 +492,12 @@ function DetallesClienteContent() {
         </div>
       </div>
 
-      {/* NAVEGACIÓN INFERIOR MEJORADA */}
-      <nav className={`${darkMode ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-orange-200'} backdrop-blur-xl fixed bottom-6 left-6 right-6 border-4 rounded-[3rem] p-4 flex justify-around items-center z-50 shadow-2xl`}>
-        <Link href="/" className="flex flex-col items-center group">
-          <span className="text-3xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1">🏠</span>
-          <span className={`text-[10px] font-black uppercase mt-1 opacity-70 group-hover:opacity-100 transition-opacity ${darkMode ? 'text-white' : 'text-black'}`}>Inicio</span>
-        </Link>
-        
-        <Link href="/fiados/nuevo" className="bg-gradient-to-r from-orange-600 to-orange-500 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-xl -mt-16 border-[6px] border-orange-50 dark:border-slate-800 transition-all duration-300 hover:shadow-2xl hover:scale-110 active:scale-95 group">
-          <span className="text-4xl font-bold transition-transform duration-300 group-hover:rotate-90">+</span>
-        </Link>
-
-        <Link href="/clientes" className="flex flex-col items-center group">
-          <span className="text-3xl transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1 text-orange-600">👥</span>
-          <span className="text-[10px] font-black uppercase mt-1 text-orange-600">Clientes</span>
-        </Link>
-      </nav>
+      <Navbar onMenuClick={() => setShowMenu(true)} />
+      <Sidebar 
+        isOpen={showMenu} 
+        onClose={() => setShowMenu(false)} 
+        onAction={() => toast.info("Acción disponible en Inicio")}
+      />
 
       {/* ESTILOS GLOBALES */}
       <style jsx global>{`
