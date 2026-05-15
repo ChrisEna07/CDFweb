@@ -71,6 +71,7 @@ export default function Dashboard() {
   const [showQRModal, setShowQRModal] = useState(false)
   const [showAtendentesModal, setShowAtendentesModal] = useState(false)
   const [modalConfig, setModalConfig] = useState({ show: false, title: '', message: '', type: 'pin', onConfirm: null, value: '', inputPlaceholder: '' })
+  const [modalInputValue, setModalInputValue] = useState('')
   const [mounted, setMounted] = useState(false)
   
   const ADMIN_PIN = '1407'
@@ -1361,6 +1362,7 @@ export default function Dashboard() {
                 <button 
                   key={a.nombre}
                   onClick={() => {
+                    setModalInputValue('')
                     setModalConfig({
                       show: true,
                       title: `PIN de ${a.nombre}`,
@@ -1385,6 +1387,7 @@ export default function Dashboard() {
               ))}
               <button 
                 onClick={() => {
+                   setModalInputValue('')
                    setModalConfig({
                      show: true,
                      title: 'Acceso Admin',
@@ -1446,6 +1449,7 @@ export default function Dashboard() {
                 <button 
                   key={a.nombre}
                   onClick={() => {
+                    setModalInputValue('')
                     setModalConfig({
                       show: true,
                       title: `Acceso: ${a.nombre}`,
@@ -1607,30 +1611,18 @@ export default function Dashboard() {
             <h2 className="text-2xl font-black uppercase italic mb-2 bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">{modalConfig.title}</h2>
             <p className="text-[10px] font-bold opacity-60 uppercase mb-8 tracking-widest">{modalConfig.message}</p>
             
-            {modalConfig.type === 'pin' && (
+            {modalConfig.show && (modalConfig.type === 'pin' || modalConfig.type === 'input') && (
               <input 
-                type="password" 
+                id="modal-input-exclusive"
+                type={modalConfig.type === 'pin' ? 'password' : 'text'}
                 autoFocus
-                placeholder="****"
-                className={`w-full p-5 rounded-2xl border-4 text-center text-2xl font-black mb-8 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-orange-500' : 'bg-orange-50 border-orange-100 focus:border-orange-500'}`}
+                value={modalInputValue}
+                onChange={(e) => setModalInputValue(e.target.value)}
+                placeholder={modalConfig.type === 'pin' ? '****' : (modalConfig.inputPlaceholder || "Escribe aquí...")}
+                className={`w-full p-5 rounded-2xl border-4 text-center ${modalConfig.type === 'pin' ? 'text-2xl' : 'text-xs'} font-black mb-8 outline-none transition-all ${darkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-orange-500' : 'bg-orange-50 border-orange-100 focus:border-orange-500'}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    modalConfig.onConfirm(e.target.value);
-                    setModalConfig({ ...modalConfig, show: false });
-                  }
-                }}
-              />
-            )}
-
-            {modalConfig.type === 'input' && (
-              <input 
-                type="text" 
-                autoFocus
-                placeholder={modalConfig.inputPlaceholder || "Escribe aquí..."}
-                className={`w-full p-4 rounded-2xl border-2 mb-8 outline-none transition-all font-black uppercase text-xs ${darkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-orange-500' : 'bg-white border-gray-100 focus:border-orange-500'}`}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    modalConfig.onConfirm(e.target.value);
+                    modalConfig.onConfirm(modalInputValue);
                     setModalConfig({ ...modalConfig, show: false });
                   }
                 }}
@@ -1645,9 +1637,7 @@ export default function Dashboard() {
               
               <button 
                 onClick={() => {
-                  const input = document.querySelector(modalConfig.type === 'confirm' ? 'button' : 'input');
-                  const val = input?.value || '';
-                  modalConfig.onConfirm(val);
+                  modalConfig.onConfirm(modalInputValue);
                   setModalConfig({ ...modalConfig, show: false });
                 }}
                 className="flex-1 py-4 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all"
