@@ -1,86 +1,69 @@
-# 🥟 MARIVAMA - Sistema de Gestión de Ventas y Fiados
+# 🥟 MARIVAMA - Sistema de Gestión de Ventas y Fiados (Producción-Ready)
 
 ![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 
-**MARIVAMA** es una aplicación web progresiva diseñada para optimizar el control de ventas, gestión de clientes deudores (fiados) y seguimiento de inventario. Enfocada en la facilidad de uso y una estética moderna con soporte para modo oscuro.
+**MARIVAMA** es una plataforma robusta y profesional diseñada para el control total de ventas, fiados y auditoría financiera. Esta versión ha sido estabilizada y optimizada para ofrecer trazabilidad absoluta en cada transacción.
 
 ---
 
-## ✨ Características Principales
+## ✨ Características Principales y Novedades
 
-* **📊 Dashboard Inteligente:** Visualización rápida de ingresos totales, saldos pendientes y estadísticas semanales.
-* **👥 Gestión de Clientes:** Registro detallado de clientes con sistema de puntos acumulables por pagos puntuales.
-* **📜 Control de Fiados:** Registro de deudas con estados (pendiente, pagado, archivado).
-* **🛒 Lista de Compras & Tareas:** Módulos integrados para organizar el inventario faltante y los pendientes diarios.
-* **📄 Exportación PDF:** Generación automática de comprobantes de cobro para enviar a los clientes.
-* **🌙 Modo Oscuro/Claro:** Interfaz adaptativa para cualquier entorno de trabajo.
-* **🔒 Seguridad:** Protección de acciones críticas (como reiniciar caja) mediante un sistema de PIN (AdminGuard).
+* **📊 Dashboard de Auditoría:** Visualización en tiempo real de ingresos, deudas y recaudos con trazabilidad de quién recibió cada pago.
+* **📜 Trazabilidad Total (Logs):** Nuevo módulo de auditoría que registra cada acción (abonos, liquidaciones, aperturas, cierres) indicando el atendente responsable, cliente, monto y hora exacta.
+* **📱 Autoservicio Inteligente:** Acceso mediante QR para clientes (`/autoservicio`). Los pedidos requieren identificación obligatoria y notifican instantáneamente al dashboard principal.
+* **👥 Gestión de Clientes Avanzada:** Perfiles detallados con historial de pagos, sistema de puntos (PTS) y semáforo de riesgo crediticio.
+* **🅿️ Control de Parqueadero & Pipetas:** Módulos especializados para servicios adicionales con seguimiento de abonos y liquidaciones.
+* **🌙 Estética Premium:** Interfaz con diseño Glassmorphism, modo oscuro permanente y animaciones fluidas para una experiencia de usuario de alto nivel.
+* **🔒 Seguridad de Turnos:** Sistema de PIN personalizado para cada atendente (Master PIN: `1407`) y AdminGuard para acciones críticas.
 
 ## 🚀 Tecnologías Utilizadas
 
-* **Frontend:** Next.js 14 (App Router) con React.
-* **Estilos:** Tailwind CSS para un diseño responsivo y animaciones personalizadas.
-* **Base de Datos & Auth:** Supabase (PostgreSQL) para almacenamiento en tiempo real.
-* **Estado & Contexto:** React Context API para manejo de temas y autenticación.
-* **Notificaciones:** Sonner para alertas interactivas.
+* **Frontend:** Next.js 14 (App Router).
+* **Base de Datos:** Supabase (PostgreSQL) con suscripciones en tiempo real.
+* **Estilos:** Tailwind CSS con temas personalizados.
+* **Auditoría:** Sistema centralizado de Logs para auditoría financiera.
+* **QR:** Generación dinámica de códigos para acceso rápido.
 
 ## 🛠️ Instalación y Configuración
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone [https://github.com/tu-usuario/marivama.git](https://github.com/tu-usuario/marivama.git)
+    git clone https://github.com/tu-usuario/marivama.git
     cd marivama
     ```
 
 2.  **Instalar dependencias:**
     ```bash
     npm install
-    # o
-    yarn install
     ```
 
 3.  **Variables de Entorno:**
-    Crea un archivo `.env.local` en la raíz del proyecto y añade tus credenciales de Supabase:
+    Configura `.env.local`:
     ```env
     NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
     NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_clave_anon_key
     ```
 
-4.  **Ejecutar en desarrollo:**
+4.  **Ejecutar:**
     ```bash
     npm run dev
     ```
-    La aplicación estará disponible en `http://localhost:3000`.
 
-## 📸 Vista Previa del Sistema
+## 📸 Trazabilidad y Reportes
 
-Aquí puedes ver cómo luce la interfaz de **MARIVAMA**:
+La aplicación ahora permite saber exactamente:
+* **¿Quién pagó?** (Nombre del cliente y su apodo).
+* **¿Cuánto pagó?** (Monto exacto registrado).
+* **¿Quién recibió el dinero?** (Atendente de turno identificado por su PIN).
+* **¿Cuándo ocurrió?** (Marca de tiempo precisa).
 
-| Dashboard Principal | Header y Mensajes |
-|---|---|
-| ![Dashboard](./screenshots/dashboard.png) | ![Header](./screenshots/header.png) |
-
-| Clientes Activos | Panel de Fiados |
-|---|---|
-| ![Clientes](./screenshots/panel%20de%20clientes%20activos.png) | ![Nuevo Fiado](./screenshots/panel%20de%20adcionar%20pedio(fiado).png) |
-
-### 🛠️ Detalles de Interfaz
-* **Análisis:** Visualiza datos rápidos con el ![Boton Estadísticas](./screenshots/boton%20de%20estadisticas.png)
-* **Utilidades:** Accede a funciones extra mediante el ![Boton Funciones](./screenshots/boton%20de%20funciones%20adicionales.png)
-
-> [!TIP]
-> La aplicación cuenta con una **Marquesina Neon** en el encabezado que muestra frases motivacionales dinámicas para inspirar el día de trabajo.
-
-## 📈 Estructura del Proyecto
-
-* `/components`: Componentes reutilizables (Modales, Guards, Layouts).
-* `/context`: Manejo del estado global (Tema, Datos).
-* `/lib`: Configuración de Supabase y utilidades de exportación (PDF).
-* `/app`: Rutas principales del Dashboard, Clientes y Reportes.
+### 🛠️ Acceso de Administrador
+Para gestionar el personal (Atendentes) y realizar cierres de caja, utiliza el **Master PIN: 1407**.
 
 ---
 
 Desarrollado por ChrizDev con ❤️ para **MARIA VANEGAS**.
+© 2026 MariVama Platform.

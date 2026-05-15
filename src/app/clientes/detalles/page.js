@@ -96,22 +96,19 @@ function DetallesClienteContent() {
       const nuevoMonto = deudaSeleccionada.monto_total - abonoMonto
       
       // Actualizar la deuda existente
+      const usuario = atendenteLogueado?.nombre || 'SISTEMA'
       const { error: updateError } = await supabase
         .from('fiados')
         .update({ 
           monto_total: nuevoMonto,
-          notas: notaAbono ? `${deudaSeleccionada.notas || ''} | ABONO: $${abonoMonto} - ${notaAbono.toUpperCase()}` : `${deudaSeleccionada.notas || ''} | ABONO: $${abonoMonto}`
+          notas: `${deudaSeleccionada.notas || ''} | [ABONO: $${abonoMonto} RECIBE: ${usuario}]`.toUpperCase()
         })
         .eq('id', deudaSeleccionada.id)
       
       if (updateError) throw updateError
       
-      // Registrar el abono en una tabla de historial de abonos (opcional)
-      // Para mantener historial, podríamos crear una tabla 'abonos'
-      // Por ahora actualizamos la nota de la deuda
-      
       toast.success(`✅ Abono de $${abonoMonto.toLocaleString()} registrado correctamente`)
-      registrarLog("ABONO", `Abono de $${abonoMonto} para ${cliente.apodo}. Deuda: ${deudaSeleccionada.productos?.nombre}`)
+      registrarLog("ABONO", `Abono de $${abonoMonto} para ${cliente.apodo}. Deuda: ${deudaSeleccionada.productos?.nombre || 'General'}`)
       setShowAbonoModal(false)
       setMontoAbono('')
       setNotaAbono('')
@@ -152,30 +149,42 @@ function DetallesClienteContent() {
   // Función que se ejecuta tras poner el PIN correcto para pagos completos
   const confirmarAccion = async () => {
     if (accionPendiente?.tipo === 'PAGAR_UNO') {
+      const usuario = atendenteLogueado?.nombre || 'SISTEMA'
+      // Obtener notas actuales para no borrarlas
+      const { data: current } = await supabase.from('fiados').select('notas').eq('id', accionPendiente.id).single()
+      
       const { error } = await supabase
         .from('fiados')
-        .update({ estado: 'pagado' })
+        .update({ 
+          estado: 'pagado',
+          notas: `${current?.notas || ''} | [PAGADO RECIBE: ${usuario}]`.toUpperCase()
+        })
         .eq('id', accionPendiente.id)
       
       if (error) {
         toast.error("Error al pagar la deuda")
       } else {
         toast.success("✅ Deuda pagada correctamente")
-        registrarLog("PAGO", `Pago de fiado individual para ${cliente.apodo}`)
+        registrarLog("PAGO", `Pago de fiado individual para ${cliente.apodo} - Recibido por ${usuario}`)
       }
     } else if (accionPendiente?.tipo === 'PAGAR_TODO') {
-      const { error } = await supabase
-        .from('fiados')
-        .update({ estado: 'pagado' })
-        .eq('cliente_id', clienteId)
-        .eq('estado', 'pendiente')
+      const usuario = atendenteLogueado?.nombre || 'SISTEMA'
       
-      if (error) {
-        toast.error("Error al pagar todas las deudas")
-      } else {
-        toast.success("✅ Todas las deudas han sido pagadas")
-        registrarLog("PAGO_TOTAL", `Pago de todas las deudas de ${cliente.apodo}`)
+      // Para pagar todo, primero obtenemos los IDs para actualizar uno por uno o usar un rpc si estuviera disponible.
+      // Como queremos preservar notas individuales, lo ideal es actualizar todos los pendientes de este cliente.
+      const { data: pendientes } = await supabase.from('fiados').select('id, notas').eq('cliente_id', clienteId).eq('estado', 'pendiente')
+      
+      if (pendientes) {
+        for (const p of pendientes) {
+          await supabase.from('fiados').update({ 
+            estado: 'pagado',
+            notas: `${p.notas || ''} | [PAGADO RECIBE: ${usuario}]`.toUpperCase()
+          }).eq('id', p.id)
+        }
       }
+      
+      toast.success("✅ Todas las deudas han sido pagadas")
+      registrarLog("PAGO_TOTAL", `Pago de todas las deudas de ${cliente.apodo} - Recibido por ${usuario}`)
     } else if (accionPendiente?.tipo === 'ABONAR') {
       setDeudaSeleccionada(accionPendiente.data)
       setMontoAbono('')

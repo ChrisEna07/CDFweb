@@ -71,16 +71,20 @@ export default function Dashboard() {
   const [showQRModal, setShowQRModal] = useState(false)
   const [showAtendentesModal, setShowAtendentesModal] = useState(false)
   const [modalConfig, setModalConfig] = useState({ show: false, title: '', message: '', type: 'pin', onConfirm: null, value: '', inputPlaceholder: '' })
+  const [mounted, setMounted] = useState(false)
   
   const ADMIN_PIN = '1407'
 
   // ✅ PERSISTENCIA DE ATENDENTE Y LISTA
   useEffect(() => {
-    const savedAtendentes = localStorage.getItem('atendentes_lista')
-    if (savedAtendentes) setAtendentes(JSON.parse(savedAtendentes))
+    setMounted(true)
+    try {
+      const savedAtendentes = localStorage.getItem('atendentes_lista')
+      if (savedAtendentes) setAtendentes(JSON.parse(savedAtendentes))
 
-    const savedLogueado = localStorage.getItem('atendente_logueado')
-    if (savedLogueado) setAtendenteLogueado(JSON.parse(savedLogueado))
+      const savedLogueado = localStorage.getItem('atendente_logueado')
+      if (savedLogueado) setAtendenteLogueado(JSON.parse(savedLogueado))
+    } catch (e) { console.error("Error loading localStorage:", e) }
   }, [])
 
   const autoservicioUrl = 'https://cd-fweb.vercel.app/autoservicio'
@@ -346,7 +350,7 @@ export default function Dashboard() {
         nota: notaParqueadero || 'Abono parcial'
       }])
 
-      registrarLog(nombreAtendente || "SISTEMA", "ABONO_PARQUEADERO", `Abono de $${montoAbono} para ${dataParqueadero.id}`)
+      registrarLog(atendenteLogueado?.nombre || "SISTEMA", "ABONO_PARQUEADERO", `Abono de $${montoAbono} para ${dataParqueadero.id}`)
       
       toast.success("Abono registrado con éxito")
       setMontoAbono('')
@@ -497,7 +501,7 @@ export default function Dashboard() {
 
   // ✅ FUNCIONES CIERRE Y APERTURA
   async function registrarApertura(abierto) {
-    if (abierto && !nombreAtendente) return toast.error("Ingresa tu nombre")
+    if (abierto && !atendenteLogueado) return toast.error("Por favor selecciona tu perfil primero")
     try {
       await supabase.from('jornadas').insert([{ 
         fecha: getHoyLocal(), 
@@ -506,7 +510,7 @@ export default function Dashboard() {
       }])
       registrarLog(atendenteLogueado?.nombre || 'SISTEMA', "APERTURA", `Inicia jornada el día ${getHoyLocal()}`)
       setShowAperturaModal(false)
-      if (abierto) toast.success(`¡Bienvenido ${nombreAtendente}!`)
+      if (abierto) toast.success(`¡Bienvenido ${atendenteLogueado?.nombre}!`)
       else toast.info("Entendido, hoy se descansa")
     } catch (e) { toast.error("Error al registrar jornada") }
   }
@@ -746,7 +750,7 @@ export default function Dashboard() {
             />
             <StatCard 
               icon="👤" label="Atendente" 
-              value={atendenteLogueado?.nombre || 'Sin elegir'} 
+              value={mounted ? (atendenteLogueado?.nombre || 'Sin elegir') : 'Cargando...'} 
               detail="Cambiar / Login"
               color="emerald"
               onClick={() => setShowAtendentesModal(true)}
@@ -827,6 +831,9 @@ export default function Dashboard() {
                   <div>
                     <p className="font-black uppercase">{clientes.find(c => c.id === pago.cliente_id)?.apodo || 'Cliente'}</p>
                     <p className="opacity-50">{new Date(pago.creado_el).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                    {pago.notas && pago.notas.includes('RECIBE:') && (
+                      <p className="text-[7px] font-black text-orange-600/60 uppercase">Recibido por: {pago.notas.split('RECIBE:')[1].split(']')[0].trim()}</p>
+                    )}
                   </div>
                   <p className="font-black text-green-600 text-sm">${Number(pago.monto_total).toLocaleString()}</p>
                 </div>
@@ -942,9 +949,16 @@ export default function Dashboard() {
                         <h3 className="text-[11px] font-black uppercase text-blue-600 mb-4 tracking-widest flex items-center gap-2">🤝 <span>Recaudos Recientes</span></h3>
                         {fiados.filter(f => f.estado === 'pagado').sort((a,b) => new Date(b.creado_el) - new Date(a.creado_el)).slice(0, 10).map(f => (
                             <Link key={f.id} href={`/clientes/detalles?id=${f.cliente_id}`} className="flex justify-between items-center text-sm mb-3 font-bold uppercase border-b border-blue-500/10 pb-2 hover:bg-blue-500/5 p-1 rounded-lg transition-all">
-                                <span className="text-blue-700 truncate max-w-[100px]">{clientes.find(c => c.id === f.cliente_id)?.apodo}</span>
-                                <span className="text-green-600 font-black">${Number(f.monto_total).toLocaleString()}</span>
-                                <span className="text-[9px] opacity-40">{new Date(f.creado_el).toLocaleDateString()}</span>
+                                <div>
+                                  <span className="text-blue-700 truncate max-w-[100px] block">{clientes.find(c => c.id === f.cliente_id)?.apodo}</span>
+                                  {f.notas && f.notas.includes('RECIBE:') && (
+                                    <span className="text-[7px] font-black text-orange-600/60 block leading-none mt-1">Recibido: {f.notas.split('RECIBE:')[1].split(']')[0].trim()}</span>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-green-600 font-black leading-none">${Number(f.monto_total).toLocaleString()}</p>
+                                  <p className="text-[9px] opacity-40 mt-1">{new Date(f.creado_el).toLocaleDateString()}</p>
+                                </div>
                             </Link>
                         ))}
                     </div>
@@ -1335,7 +1349,7 @@ export default function Dashboard() {
       )}
 
       {/* 👤 MODAL QUIÉN ATIENDE (NUEVO/REFACTOR) */}
-      {showAtendentesModal && (
+      {showAtendentesModal && mounted && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fadeIn">
           <div className={`w-full max-w-sm rounded-[3rem] p-8 text-center shadow-2xl animate-slideUp ${darkMode ? 'bg-slate-900 border-2 border-emerald-500/30' : 'bg-white'}`}>
             <span className="text-6xl mb-4 block animate-pulse">👤</span>
@@ -1353,7 +1367,7 @@ export default function Dashboard() {
                       message: `Ingresa el código de acceso para ${a.nombre}`,
                       type: 'pin',
                       onConfirm: (pin) => {
-                        if (pin === a.pin) {
+                        if (pin && pin === a.pin) {
                           setAtendenteLogueado(a)
                           localStorage.setItem('atendente_logueado', JSON.stringify(a))
                           toast.success(`Bienvenido ${a.nombre}`)
@@ -1374,26 +1388,31 @@ export default function Dashboard() {
                    setModalConfig({
                      show: true,
                      title: 'Acceso Admin',
-                     message: 'Ingresa la clave de Maria para gestionar personal',
+                     message: 'Clave de Maria para gestionar personal',
                      type: 'pin',
                      onConfirm: (pin) => {
                        if (pin === '1407') {
-                         setModalConfig({
-                           show: true,
-                           title: 'Nuevo Atendente',
-                           message: 'Ingresa el nombre y el PIN separados por coma (Ej: JUAN, 1234)',
-                           type: 'input',
-                           inputPlaceholder: 'NOMBRE, PIN',
-                           onConfirm: (val) => {
-                             const [n, p] = val.split(',').map(s => s.trim())
-                             if (n && p) {
-                               const nuevaLista = [...atendentes, { nombre: n.toUpperCase(), pin: p }]
-                               setAtendentes(nuevaLista)
-                               localStorage.setItem('atendentes_lista', JSON.stringify(nuevaLista))
-                               toast.success(`${n} agregado con éxito`)
+                         setTimeout(() => {
+                           setModalConfig({
+                             show: true,
+                             title: 'Nuevo Atendente',
+                             message: 'Ingresa NOMBRE y PIN (Ej: JUAN, 1234)',
+                             type: 'input',
+                             inputPlaceholder: 'NOMBRE, PIN',
+                             onConfirm: (val) => {
+                               const partes = val.split(',')
+                               if (partes.length < 2) return toast.error("Usa el formato: NOMBRE, PIN")
+                               const n = partes[0].trim()
+                               const p = partes[1].trim()
+                               if (n && p) {
+                                 const nuevaLista = [...atendentes, { nombre: n.toUpperCase(), pin: p }]
+                                 setAtendentes(nuevaLista)
+                                 localStorage.setItem('atendentes_lista', JSON.stringify(nuevaLista))
+                                 toast.success(`${n} agregado con éxito`)
+                               }
                              }
-                           }
-                         })
+                           })
+                         }, 100)
                        } else {
                          toast.error("Acceso denegado")
                        }

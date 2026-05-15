@@ -12,6 +12,14 @@ export default function Logs() {
     const [logs, setLogs] = useState([])
     const [loading, setLoading] = useState(true)
     const [showMenu, setShowMenu] = useState(false)
+    const [filtroActual, setFiltroActual] = useState('TODOS')
+
+    const logsFiltrados = logs.filter(log => {
+        if (filtroActual === 'TODOS') return true
+        if (filtroActual === 'PAGO') return log.accion.includes('PAGO')
+        if (filtroActual === 'ABONO') return log.accion.includes('ABONO')
+        return log.accion === filtroActual
+    })
 
     useEffect(() => {
         fetchLogs()
@@ -50,26 +58,60 @@ export default function Logs() {
             </div>
 
             <div className="p-6 max-w-4xl mx-auto space-y-4">
+                <div className="flex flex-wrap gap-2 mb-6">
+                    {['TODOS', 'PAGO', 'ABONO', 'APERTURA', 'CIERRE', 'AUTO_FIADO', 'CORRECCION'].map(filtro => (
+                        <button 
+                            key={filtro}
+                            onClick={() => setFiltroActual(filtro)}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${filtroActual === filtro ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/30' : 'bg-black/5 dark:bg-white/5 opacity-60'}`}
+                        >
+                            {filtro}
+                        </button>
+                    ))}
+                </div>
+
                 {loading ? (
-                    <div className="flex justify-center p-20 animate-pulse text-4xl">🔄</div>
-                ) : logs.length === 0 ? (
-                    <div className="text-center opacity-50 italic p-20">No hay registros de actividad.</div>
+                    <div className="flex flex-col items-center justify-center p-20">
+                        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p className="text-[10px] font-black uppercase opacity-50 tracking-widest">Sincronizando auditoría...</p>
+                    </div>
+                ) : logsFiltrados.length === 0 ? (
+                    <div className="text-center opacity-30 italic p-20 font-black uppercase tracking-widest border-4 border-dashed rounded-[3rem]">
+                        No hay registros que coincidan 🔍
+                    </div>
                 ) : (
-                    logs.map(log => (
-                        <div key={log.id} className={`${cardBg} p-4 rounded-2xl border-2 flex gap-4 items-start transition-all hover:scale-[1.01]`}>
-                            <div className="bg-blue-500/10 p-3 rounded-xl text-2xl">
-                                {log.accion === 'APERTURA' ? '☀️' : 
+                    logsFiltrados.map((log, index) => (
+                        <div 
+                            key={log.id} 
+                            className={`${cardBg} p-5 rounded-[2.5rem] border-2 flex gap-5 items-start transition-all hover:scale-[1.02] hover:shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500`}
+                            style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                            <div className={`p-4 rounded-2xl text-2xl shadow-inner ${
+                                log.accion.includes('PAGO') ? 'bg-green-500/10 text-green-600' :
+                                log.accion.includes('ABONO') ? 'bg-blue-500/10 text-blue-600' :
+                                log.accion === 'APERTURA' ? 'bg-amber-500/10 text-amber-600' :
+                                log.accion === 'CIERRE' ? 'bg-purple-500/10 text-purple-600' :
+                                log.accion === 'AUTO_FIADO' ? 'bg-cyan-500/10 text-cyan-600' : 'bg-gray-500/10 text-gray-600'
+                            }`}>
+                                {log.accion.includes('PAGO') ? '💰' : 
+                                 log.accion.includes('ABONO') ? '💵' : 
+                                 log.accion === 'APERTURA' ? '☀️' : 
                                  log.accion === 'CIERRE' ? '🌙' : 
                                  log.accion === 'AUTO_FIADO' ? '📱' : 
                                  log.accion === 'ABONO_PARQUEADERO' ? '🅿️' : '📝'}
                             </div>
                             <div className="flex-1">
                                 <div className="flex justify-between items-center mb-1">
-                                    <span className="text-[10px] font-black uppercase text-blue-500 tracking-widest">{log.usuario}</span>
-                                    <span className="text-[9px] opacity-40 font-bold">{new Date(log.fecha).toLocaleString()}</span>
+                                    <span className="text-[10px] font-black uppercase text-orange-600 tracking-widest bg-orange-500/5 px-2 py-0.5 rounded-full border border-orange-500/10">
+                                        👤 {log.usuario}
+                                    </span>
+                                    <div className="text-right">
+                                        <p className="text-[9px] opacity-40 font-bold uppercase">{new Date(log.fecha).toLocaleDateString()}</p>
+                                        <p className="text-[9px] opacity-40 font-bold uppercase">{new Date(log.fecha).toLocaleTimeString()}</p>
+                                    </div>
                                 </div>
-                                <p className="text-xs font-black uppercase italic">{log.accion}</p>
-                                <p className="text-[11px] font-medium opacity-70 mt-1">{log.detalle}</p>
+                                <h3 className="text-sm font-black uppercase italic tracking-tighter mb-1">{log.accion.replace('_', ' ')}</h3>
+                                <p className="text-[11px] font-medium opacity-70 leading-relaxed bg-black/5 dark:bg-white/5 p-3 rounded-2xl border-l-4 border-orange-500/50">{log.detalle}</p>
                             </div>
                         </div>
                     ))
