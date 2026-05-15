@@ -61,7 +61,7 @@ export default function Autoservicio() {
                 await supabase.from('logs').insert([{
                     usuario: "CLIENTE_QR",
                     accion: "AUTO_FIADO",
-                    detalle: `Fiado automático para ${cliente.apodo}: ${detalleStr}. Total: $${total}`,
+                    detalle: `Fiado de ${nombreCliente.toUpperCase()}: ${detalleStr}. Total: $${total}`,
                     fecha: new Date().toISOString()
                 }])
 
@@ -170,7 +170,7 @@ export default function Autoservicio() {
             <div className="mt-12 flex flex-col items-center opacity-30 hover:opacity-100 transition-opacity pb-20">
                 <p className="text-[10px] font-black uppercase mb-3">Compartir este menú</p>
                 <div className="bg-white p-3 rounded-2xl">
-                    <QRCodeCanvas value={typeof window !== 'undefined' ? window.location.href : ''} size={80} />
+                    <QRCodeCanvas value="https://cd-fweb.vercel.app/autoservicio" size={80} />
                 </div>
             </div>
 

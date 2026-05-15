@@ -82,7 +82,7 @@ export default function Dashboard() {
     if (savedLogueado) setAtendenteLogueado(JSON.parse(savedLogueado))
   }, [])
 
-  const autoservicioUrl = typeof window !== 'undefined' ? `${window.location.origin}/autoservicio` : 'https://marivama.app/autoservicio'
+  const autoservicioUrl = 'https://cd-fweb.vercel.app/autoservicio'
 
   // ✅ ESTADOS PARA GASTOS DIARIOS (NUEVO)
   const [gastos, setGastos] = useState({
