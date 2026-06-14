@@ -313,14 +313,6 @@ export default function Dashboard() {
     if (!jornada && hora >= 4) {
       // setShowAperturaModal(true) // Desactivado para evitar interrupciones al ingresar
     }
-
-    // Verificar si ya respondió cierre hoy
-    if (jornada?.abierto) {
-      const { data: cierre } = await supabase.from('cierres_diarios').select('*').eq('fecha', hoy).maybeSingle()
-      if (!cierre && hora >= 12) {
-        setShowCierreModal(true)
-      }
-    }
   }
   async function fetchParqueadero() {
     try {
