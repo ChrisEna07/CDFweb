@@ -999,7 +999,7 @@ export default function Dashboard() {
         onAction={(type) => {
           if (type === 'CIERRE') setShowCierreModal(true)
           if (type === 'PARQUEADERO') setShowParqueaderoModal(true)
-          if (type === 'PIPETAS') setShowPipetasModal(true)
+          if (type === 'PIPETAS') setShowPipetaModal(true)
         }}
       >
         <div className="mt-8 pt-8 border-t-2 border-orange-500/10 space-y-6">
