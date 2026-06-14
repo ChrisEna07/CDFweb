@@ -311,7 +311,7 @@ export default function Dashboard() {
     // Verificar si ya respondió apertura hoy
     const { data: jornada } = await supabase.from('jornadas').select('*').eq('fecha', hoy).maybeSingle()
     if (!jornada && hora >= 4) {
-      setShowAperturaModal(true)
+      // setShowAperturaModal(true) // Desactivado para evitar interrupciones al ingresar
     }
 
     // Verificar si ya respondió cierre hoy

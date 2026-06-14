@@ -12,6 +12,8 @@ export default function GestionProductos() {
   const [precio, setPrecio] = useState('')
   const [cargando, setCargando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editPrecio, setEditPrecio] = useState('')
 
   useEffect(() => { fetchProductos() }, [])
 
@@ -48,6 +50,27 @@ export default function GestionProductos() {
     } else {
       toast.error("No se puede borrar: ya está en una cuenta vieja")
     }
+  }
+
+  const guardarEdicion = async (id) => {
+    if (!editPrecio || isNaN(Number(editPrecio)) || Number(editPrecio) <= 0) {
+      return toast.error("Ingresa un precio válido")
+    }
+    
+    setCargando(true)
+    const { error } = await supabase
+      .from('productos')
+      .update({ precio: Number(editPrecio) })
+      .eq('id', id)
+      
+    if (!error) {
+      toast.success("Precio actualizado ✨")
+      setEditingId(null)
+      fetchProductos()
+    } else {
+      toast.error("Error al actualizar precio")
+    }
+    setCargando(false)
   }
 
   // Filtrar productos por búsqueda
@@ -195,17 +218,74 @@ export default function GestionProductos() {
                     <p className="font-black uppercase text-xl leading-none group-hover:text-orange-600 transition-colors">
                       {p.nombre}
                     </p>
-                    <p className="text-orange-600 font-black text-2xl mt-2">
-                      ${p.precio.toLocaleString('es-CO')}
-                    </p>
+                    {editingId === p.id ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-orange-600 font-black text-2xl">$</span>
+                        <input
+                          type="number"
+                          value={editPrecio}
+                          onChange={e => setEditPrecio(e.target.value)}
+                          className={`w-32 p-2 rounded-xl border-2 font-black text-lg outline-none ${
+                            darkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-orange-500' : 'bg-white border-orange-200 focus:border-orange-500'
+                          }`}
+                          autoFocus
+                          placeholder="Precio"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') guardarEdicion(p.id)
+                            if (e.key === 'Escape') setEditingId(null)
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-orange-600 font-black text-2xl mt-2">
+                        ${p.precio.toLocaleString('es-CO')}
+                      </p>
+                    )}
                   </div>
-                  <button 
-                    onClick={() => eliminarProducto(p.id, p.nombre)} 
-                    className="bg-red-500/10 hover:bg-red-500/20 p-3 rounded-2xl border-2 border-red-400/30 text-xl transition-all duration-300 hover:scale-110 active:scale-95 group"
-                    title="Eliminar producto"
-                  >
-                    🗑️
-                  </button>
+                  <div className="flex gap-2">
+                    {editingId === p.id ? (
+                      <>
+                        <button 
+                          type="button"
+                          onClick={() => guardarEdicion(p.id)} 
+                          className="bg-green-500/10 hover:bg-green-500/20 p-3 rounded-2xl border-2 border-green-400/30 text-xl transition-all duration-300 hover:scale-110 active:scale-95"
+                          title="Guardar precio"
+                        >
+                          💾
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setEditingId(null)} 
+                          className="bg-gray-500/10 hover:bg-gray-500/20 p-3 rounded-2xl border-2 border-gray-400/30 text-xl transition-all duration-300 hover:scale-110 active:scale-95"
+                          title="Cancelar"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setEditingId(p.id)
+                            setEditPrecio(p.precio)
+                          }} 
+                          className="bg-blue-500/10 hover:bg-blue-500/20 p-3 rounded-2xl border-2 border-blue-400/30 text-xl transition-all duration-300 hover:scale-110 active:scale-95"
+                          title="Editar precio"
+                        >
+                          ✏️
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => eliminarProducto(p.id, p.nombre)} 
+                          className="bg-red-500/10 hover:bg-red-500/20 p-3 rounded-2xl border-2 border-red-400/30 text-xl transition-all duration-300 hover:scale-110 active:scale-95 group"
+                          title="Eliminar producto"
+                        >
+                          🗑️
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

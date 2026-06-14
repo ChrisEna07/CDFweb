@@ -23,6 +23,11 @@ export default function Sidebar({ isOpen, onClose, onAction, children }) {
                 <span className="flex items-center gap-3">📱 Autoservicio QR</span>
                 <span>→</span>
             </Link>
+
+            <Link href="/productos" onClick={onClose} className="flex items-center justify-between p-5 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-[2rem] font-black uppercase italic shadow-lg transition-all hover:scale-[1.02]">
+                <span className="flex items-center gap-3">🍴 Configurar Menú</span>
+                <span>→</span>
+            </Link>
             
             <button onClick={() => { onAction('CIERRE'); onClose(); }} className="flex items-center justify-between p-5 bg-gradient-to-r from-rose-600 to-rose-500 text-white rounded-[2rem] font-black uppercase italic shadow-lg transition-all hover:scale-[1.02]">
                 <span className="flex items-center gap-3">📝 Cierre Manual</span>
